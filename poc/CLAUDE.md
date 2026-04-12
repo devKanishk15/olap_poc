@@ -16,7 +16,7 @@ cp .env.example .env
 python -m venv /opt1/poc/.venv
 /opt1/poc/.venv/bin/pip install -r harness/requirements.txt
 
-# VM prep (kernel tunables, Docker, directories) — requires root on Ubuntu 22.04
+# VM prep (kernel tunables, Docker, directories) — requires root on Rocky Linux 9
 bash scripts/00_vm_prep.sh
 
 # Generate 10M-row Parquet dataset and upload to GCS

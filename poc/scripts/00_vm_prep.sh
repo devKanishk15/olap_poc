@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 00_vm_prep.sh  — VM preparation for OLAP POC
-# Run as root (or with sudo) on Ubuntu 22.04 LTS.
+# Run as root (or with sudo) on Rocky Linux 9.
 # =============================================================================
 set -euo pipefail
 LOGFILE="/var/log/olap_poc_prep.log"
@@ -76,23 +76,23 @@ echo "  Secured: /opt1/secrets (700)"
 echo ""
 echo "--- Installing System Packages ---"
 
-apt-get update -qq
-apt-get install -y --no-install-recommends \
+# Enable EPEL (needed for jq, htop, sysstat on Rocky 9)
+dnf install -y epel-release
+
+dnf install -y \
   ca-certificates \
   curl \
   wget \
-  gnupg \
-  lsb-release \
+  gnupg2 \
   unzip \
   jq \
   sysstat \
-  procps \
+  procps-ng \
   htop \
   net-tools \
   python3 \
   python3-pip \
-  python3-venv \
-  mysql-client \
+  mariadb \
   2>/dev/null
 
 echo "  System packages installed."
@@ -106,19 +106,11 @@ echo "--- Installing Docker ---"
 if command -v docker &>/dev/null; then
   echo "  Docker already installed: $(docker --version)"
 else
-  install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-    gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-  chmod a+r /etc/apt/keyrings/docker.gpg
+  # Add Docker's official repo for RHEL/Rocky Linux
+  dnf install -y dnf-plugins-core
+  dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
 
-  echo \
-    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-    https://download.docker.com/linux/ubuntu \
-    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-    tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-  apt-get update -qq
-  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   systemctl enable --now docker
   echo "  Docker installed and started."
 fi
