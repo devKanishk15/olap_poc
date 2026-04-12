@@ -13,7 +13,7 @@ services:
   # Frontend (FE) — query coordinator, metadata, SQL parser
   # ---------------------------------------------------------------------------
   fe:
-    image: ${DORIS_FE_IMAGE:-apache/doris:2.1.7-fe-x86_64}
+    image: ${DORIS_FE_IMAGE:-apache/doris:fe-2.1.7}
     container_name: doris-fe
     hostname: doris-fe
     restart: unless-stopped
@@ -47,7 +47,7 @@ services:
   # Backend (BE) — storage engine, vectorized execution
   # ---------------------------------------------------------------------------
   be:
-    image: ${DORIS_BE_IMAGE:-apache/doris:2.1.7-be-x86_64}
+    image: ${DORIS_BE_IMAGE:-apache/doris:be-2.1.7}
     container_name: doris-be
     hostname: doris-be
     restart: unless-stopped
