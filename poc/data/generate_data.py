@@ -187,16 +187,18 @@ def generate_chunk(rng: np.random.Generator, start_id: int, n: int) -> pa.Table:
     qty_raw      = rng.integers(1, 21, size=n).astype(np.int16)
     quantity     = np.where(has_product, qty_raw, None)
 
-    order_ids    = np.where(is_purchase, rng.integers(1, 5_000_001, size=n).astype(np.int64), None)
-    order_totals = np.where(is_purchase, np.round(prices_raw * qty_raw, 2), None)
-    discount_pct = rng.uniform(0, 0.3, size=n)
-    disc_amts    = np.where(is_purchase, np.round(order_totals * discount_pct, 2), None)
+    order_ids       = np.where(is_purchase, rng.integers(1, 5_000_001, size=n).astype(np.int64), None)
+    order_totals_raw= np.round(prices_raw * qty_raw, 2)
+    order_totals    = np.where(is_purchase, order_totals_raw, None)
+    discount_pct    = rng.uniform(0, 0.3, size=n)
+    disc_amts_raw   = np.round(order_totals_raw * discount_pct, 2)
+    disc_amts       = np.where(is_purchase, disc_amts_raw, None)
     coupons      = np.where(
         is_purchase & (rng.random(n) < 0.3),
         [f"COUP{rng.integers(1, NUM_COUPONS + 1):04d}" for _ in range(n)],
         None
     )
-    revenue_arr  = np.where(is_purchase, np.round((order_totals - disc_amts) * 0.1, 4), None)
+    revenue_arr  = np.where(is_purchase, np.round((order_totals_raw - disc_amts_raw) * 0.1, 4), None)
 
     # Booleans
     is_bot       = rng.random(n) < 0.02
