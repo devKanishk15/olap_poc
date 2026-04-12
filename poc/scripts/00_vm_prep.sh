@@ -185,11 +185,11 @@ python3 -m venv /opt1/poc/.venv
 /opt1/poc/.venv/bin/pip install --upgrade pip -q
 
 # Install harness dependencies from requirements.txt if present
-if [[ -f /opt1/poc/harness/requirements.txt ]]; then
-  /opt1/poc/.venv/bin/pip install -r /opt1/poc/harness/requirements.txt -q
+if [[ -f /opt1/olap_poc/poc/harness/requirements.txt ]]; then
+  /opt1/poc/.venv/bin/pip install -r /opt1/olap_poc/poc/harness/requirements.txt -q
   echo "  Harness dependencies installed."
 else
-  echo "  harness/requirements.txt not found yet — run again after copying poc files."
+  echo "  harness/requirements.txt not found yet — run again after cloning the repo to /opt1/olap_poc."
 fi
 
 # ---------------------------------------------------------------------------

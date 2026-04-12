@@ -81,6 +81,86 @@ def load_env() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Pre-flight schema check
+# ---------------------------------------------------------------------------
+
+def _preflight_fail(msg: str) -> None:
+    print("FAIL")
+    sys.exit(f"\nPreflight check failed: {msg}\n")
+
+
+def preflight_check(engine: str, env: dict) -> None:
+    """Fail fast if the engine isn't reachable or poc.event_fact doesn't exist."""
+    print(f"  [preflight] Verifying {engine} connectivity and schema...", end=" ", flush=True)
+    try:
+        if engine == "doris":
+            import mysql.connector
+            conn = mysql.connector.connect(
+                host=env.get("DORIS_HOST", "127.0.0.1"),
+                port=int(env.get("DORIS_FE_QUERY_PORT", "9030")),
+                user=env.get("DORIS_USER", "root"),
+                password=env.get("DORIS_PASSWORD", ""),
+                connection_timeout=15,
+            )
+            cur = conn.cursor()
+            cur.execute("SHOW TABLES FROM poc LIKE 'event_fact'")
+            found = cur.fetchall()
+            cur.close(); conn.close()
+            if not found:
+                _preflight_fail(
+                    "Table poc.event_fact not found in Doris.\n"
+                    "  → Run:  make schema-doris\n"
+                    "  → Then load data (if not already done):  make data\n"
+                    "  → Then reload into Doris:  "
+                    "python harness/run_benchmark.py --engine doris --mode local --writes-only"
+                )
+
+        elif engine == "duckdb":
+            import duckdb
+            con = duckdb.connect(env.get("DUCKDB_DB_PATH", "/opt1/duckdb/benchmark.duckdb"))
+            rows = con.execute(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema='poc' AND table_name='event_fact'"
+            ).fetchall()
+            con.close()
+            if not rows:
+                _preflight_fail(
+                    "Table poc.event_fact not found in DuckDB.\n"
+                    "  → Run:  make schema-duckdb"
+                )
+
+        elif engine == "clickhouse":
+            import requests as _req
+            host = env.get("CLICKHOUSE_HOST", "127.0.0.1")
+            port = env.get("CLICKHOUSE_HTTP_PORT", "8123")
+            user = env.get("CLICKHOUSE_USER", "default")
+            pw   = env.get("CLICKHOUSE_PASSWORD", "")
+            db   = env.get("CLICKHOUSE_DATABASE", "poc")
+            resp = _req.get(
+                f"http://{host}:{port}/",
+                params={"query": (
+                    f"SELECT 1 FROM system.tables "
+                    f"WHERE database='{db}' AND name='event_fact' FORMAT TSV"
+                )},
+                auth=(user, pw), timeout=15,
+            )
+            if resp.status_code != 200 or resp.text.strip() != "1":
+                _preflight_fail(
+                    f"Table {db}.event_fact not found in ClickHouse.\n"
+                    "  → Run:  make schema-clickhouse"
+                )
+
+    except SystemExit:
+        raise
+    except Exception as exc:
+        _preflight_fail(
+            f"Cannot connect to {engine}: {exc}\n"
+            f"  → Is {engine} running?  Try:  make install-{engine}"
+        )
+    print("OK")
+
+
+# ---------------------------------------------------------------------------
 # Cache flushing
 # ---------------------------------------------------------------------------
 
@@ -398,6 +478,8 @@ def main():
     RESULTS.mkdir(parents=True, exist_ok=True)
     LOGS.mkdir(parents=True, exist_ok=True)
 
+    preflight_check(args.engine, env)
+
     ts       = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out_file = RESULTS / f"{args.engine}_{args.mode}_{ts}.jsonl"
 
@@ -447,15 +529,23 @@ def main():
                 env={**os.environ, **env},
             )
             elapsed = time.perf_counter() - t0
+            # Parse last JSON line from stdout (workloads always print their result there)
+            lines = [l for l in proc.stdout.strip().splitlines() if l.startswith("{")]
             if proc.returncode == 0:
-                # Parse last JSON from stdout
-                lines = [l for l in proc.stdout.strip().splitlines() if l.startswith("{")]
                 if lines:
                     w_result = json.loads(lines[-1])
                 else:
                     w_result = {"status": "OK", "stdout": proc.stdout[-300:]}
             else:
-                w_result = {"status": "ERROR", "stderr": proc.stderr[-300:]}
+                if lines:
+                    # Workload printed its error record to stdout before exiting non-zero
+                    w_result = json.loads(lines[-1])
+                    w_result.setdefault("status", "ERROR")
+                else:
+                    w_result = {
+                        "status": "ERROR",
+                        "error":  (proc.stderr or proc.stdout)[-300:],
+                    }
             w_result["wall_s"]    = round(elapsed, 3)
             w_result["timestamp"] = datetime.now(timezone.utc).isoformat()
             all_results.append(w_result)

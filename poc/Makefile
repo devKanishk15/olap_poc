@@ -64,11 +64,11 @@ help:
 # ---------------------------------------------------------------------------
 prep:
 	@echo "--- VM Preparation ---"
-	sudo bash /opt1/poc/scripts/00_vm_prep.sh
+	sudo bash scripts/00_vm_prep.sh
 
 data:
 	@echo "--- Generating synthetic dataset (10M rows, local only — used for write benchmarks) ---"
-	$(PYTHON) /opt1/poc/data/generate_data.py \
+	$(PYTHON) data/generate_data.py \
 		--rows  $$(grep DATA_ROW_COUNT $(ENV_FILE) | cut -d= -f2 || echo 10000000) \
 		--seed  $$(grep DATA_SEED      $(ENV_FILE) | cut -d= -f2 || echo 42) \
 		--out   $$(grep DATA_DIR       $(ENV_FILE) | cut -d= -f2 || echo /opt1/data)
@@ -79,62 +79,64 @@ data:
 # ---------------------------------------------------------------------------
 install-doris:
 	@echo "--- Installing Apache Doris ---"
-	bash /opt1/poc/scripts/01_install_doris.sh
+	bash scripts/01_install_doris.sh
 
 install-duckdb:
 	@echo "--- Installing DuckDB ---"
-	bash /opt1/poc/scripts/02_install_duckdb.sh
-	$(PYTHON) /opt1/poc/schema/duckdb_ddl.sql 2>/dev/null || \
+	bash scripts/02_install_duckdb.sh
+	$(PYTHON) schema/duckdb_ddl.sql 2>/dev/null || \
 	    duckdb $$(grep DUCKDB_DB_PATH $(ENV_FILE) | cut -d= -f2) \
-	        < /opt1/poc/schema/duckdb_ddl.sql
+	        < schema/duckdb_ddl.sql
 
 install-clickhouse:
 	@echo "--- Installing ClickHouse ---"
-	bash /opt1/poc/scripts/03_install_clickhouse.sh
+	bash scripts/03_install_clickhouse.sh
 
 # ---------------------------------------------------------------------------
 # Schema creation (run after engine is up)
 # ---------------------------------------------------------------------------
 schema-doris:
-	mysql -h $$(grep DORIS_HOST $(ENV_FILE) | cut -d= -f2 || echo 127.0.0.1) \
-	      -P $$(grep DORIS_FE_QUERY_PORT $(ENV_FILE) | cut -d= -f2 || echo 9030) \
-	      -u $$(grep DORIS_USER $(ENV_FILE) | cut -d= -f2 || echo root) \
-	      < /opt1/poc/schema/doris_ddl.sql
+	@DORIS_PASS=$$(grep -E '^DORIS_PASSWORD=' $(ENV_FILE) | cut -d= -f2); \
+	mysql -h $$(grep -E '^DORIS_HOST=' $(ENV_FILE) | cut -d= -f2 || echo 127.0.0.1) \
+	      -P $$(grep -E '^DORIS_FE_QUERY_PORT=' $(ENV_FILE) | cut -d= -f2 || echo 9030) \
+	      -u $$(grep -E '^DORIS_USER=' $(ENV_FILE) | cut -d= -f2 || echo root) \
+	      $${DORIS_PASS:+--password="$$DORIS_PASS"} \
+	      < schema/doris_ddl.sql
 
 schema-duckdb:
 	duckdb $$(grep DUCKDB_DB_PATH $(ENV_FILE) | cut -d= -f2 || echo /opt1/duckdb/benchmark.duckdb) \
-	    < /opt1/poc/schema/duckdb_ddl.sql
+	    < schema/duckdb_ddl.sql
 
 schema-clickhouse:
 	curl -s "http://127.0.0.1:8123/" \
-	    --data-binary @/opt1/poc/schema/clickhouse_ddl.sql
+	    --data-binary @schema/clickhouse_ddl.sql
 
 # ---------------------------------------------------------------------------
 # Benchmarks
 # ---------------------------------------------------------------------------
 bench-doris-local:
 	@echo "--- Benchmarking Doris (local) ---"
-	$(PYTHON) /opt1/poc/harness/run_benchmark.py --engine doris --mode local
+	$(PYTHON) harness/run_benchmark.py --engine doris --mode local
 
 bench-doris-gcs:
 	@echo "--- Benchmarking Doris (GCS) ---"
-	$(PYTHON) /opt1/poc/harness/run_benchmark.py --engine doris --mode gcs
+	$(PYTHON) harness/run_benchmark.py --engine doris --mode gcs
 
 bench-duckdb-local:
 	@echo "--- Benchmarking DuckDB (local) ---"
-	$(PYTHON) /opt1/poc/harness/run_benchmark.py --engine duckdb --mode local
+	$(PYTHON) harness/run_benchmark.py --engine duckdb --mode local
 
 bench-duckdb-gcs:
 	@echo "--- Benchmarking DuckDB (GCS) ---"
-	$(PYTHON) /opt1/poc/harness/run_benchmark.py --engine duckdb --mode gcs
+	$(PYTHON) harness/run_benchmark.py --engine duckdb --mode gcs
 
 bench-clickhouse-local:
 	@echo "--- Benchmarking ClickHouse (local) ---"
-	$(PYTHON) /opt1/poc/harness/run_benchmark.py --engine clickhouse --mode local
+	$(PYTHON) harness/run_benchmark.py --engine clickhouse --mode local
 
 bench-clickhouse-gcs:
 	@echo "--- Benchmarking ClickHouse (GCS) ---"
-	$(PYTHON) /opt1/poc/harness/run_benchmark.py --engine clickhouse --mode gcs
+	$(PYTHON) harness/run_benchmark.py --engine clickhouse --mode gcs
 
 # Run all three engines sequentially (local only) — stops each before starting next
 bench-all:
@@ -170,7 +172,7 @@ bench-all:
 # ---------------------------------------------------------------------------
 analyse:
 	@echo "--- Analysing results ---"
-	$(PYTHON) /opt1/poc/report/analyse_results.py \
+	$(PYTHON) report/analyse_results.py \
 		--results $(RESULTS_DIR) \
 		--out     $(REPORT_DIR)
 	@echo ""
@@ -181,16 +183,16 @@ analyse:
 # Teardown
 # ---------------------------------------------------------------------------
 teardown-doris:
-	bash /opt1/poc/scripts/99_teardown.sh --engine doris
+	bash scripts/99_teardown.sh --engine doris
 
 teardown-duckdb:
-	bash /opt1/poc/scripts/99_teardown.sh --engine duckdb
+	bash scripts/99_teardown.sh --engine duckdb
 
 teardown-clickhouse:
-	bash /opt1/poc/scripts/99_teardown.sh --engine clickhouse
+	bash scripts/99_teardown.sh --engine clickhouse
 
 teardown-all:
-	bash /opt1/poc/scripts/99_teardown.sh --all
+	bash scripts/99_teardown.sh --all
 
 # ---------------------------------------------------------------------------
 # Cleanup
