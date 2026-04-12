@@ -5,7 +5,7 @@
 # Must be run AFTER 00_vm_prep.sh
 # =============================================================================
 set -euo pipefail
-source /opt1/poc/.env 2>/dev/null || { echo "ERROR: /opt1/poc/.env not found. Copy .env.example and fill it in."; exit 1; }
+source /opt1/olap_poc/poc/.env 2>/dev/null || { echo "ERROR: /opt1/olap_poc/poc/.env not found. Copy .env.example and fill it in."; exit 1; }
 
 LOGFILE="/opt1/logs/doris_install.log"
 exec > >(tee -a "$LOGFILE") 2>&1

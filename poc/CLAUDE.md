@@ -19,14 +19,15 @@ python -m venv /opt1/poc/.venv
 # VM prep (kernel tunables, Docker, directories) — requires root on Rocky Linux 9
 bash scripts/00_vm_prep.sh
 
-# Generate 10M-row Parquet dataset and upload to GCS
+# Generate 10M-row Parquet dataset (local only — used for write/update/delete benchmarks)
 python data/generate_data.py
-python data/upload_to_gcs.py
+# NOTE: GCS read benchmarks read directly from production data already in the GCS bucket.
+# No upload step needed.
 ```
 
 ## Common Commands
 
-All operations are wrapped by `make`. The Makefile hardcodes `PYTHON=/opt1/poc/.venv/bin/python` and reads config from `/opt1/poc/.env`.
+All operations are wrapped by `make`. The Makefile hardcodes `PYTHON=/opt1/poc/.venv/bin/python` and reads config from `/opt1/olap_poc/poc/.env`.
 
 ```bash
 make help                    # List all targets
@@ -79,11 +80,12 @@ python report/analyse_results.py --results /opt1/poc/results --out report/
 ### Data flow
 
 ```
-generate_data.py  →  /opt1/data/*.parquet  →  upload_to_gcs.py  →  GCS bucket
+generate_data.py  →  /opt1/data/*.parquet  (write/update/delete benchmarks only)
                                                        ↓
 install_*.sh  →  engine running  →  schema DDL  →  bulk load local data
                                                        ↓
 run_benchmark.py  →  results/<engine>_<mode>_<ts>.jsonl
+                   (--mode gcs reads directly from production data in GCS bucket)
                                                        ↓
 analyse_results.py  →  report/01_raw_results.csv
                      →  report/02_summary_table.md

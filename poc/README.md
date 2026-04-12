@@ -34,8 +34,7 @@ poc/
 │   ├── duckdb_ddl.sql
 │   └── clickhouse_ddl.sql
 ├── data/
-│   ├── generate_data.py               ← Synthetic 10M-row Parquet generator
-│   └── upload_to_gcs.py               ← GCS upload helper
+│   └── generate_data.py               ← Synthetic 10M-row Parquet generator (local only, for write benchmarks)
 ├── queries/
 │   ├── Q01_full_agg/
 │   │   ├── doris.sql
@@ -82,11 +81,12 @@ vi .env   # fill in GCS_BUCKET, HMAC_KEY, engine versions, etc.
 # 3. Prepare the VM (kernel tunables, Docker, directories)
 bash scripts/00_vm_prep.sh
 
-# 4. Generate + upload synthetic data
+# 4. Generate synthetic data (local only — used for write/update/delete benchmarks)
 cd data
 pip install -r ../harness/requirements.txt
 python generate_data.py        # writes /opt1/data/
-python upload_to_gcs.py        # uploads to GCS bucket
+# NOTE: GCS read benchmarks (--mode gcs) read directly from production data
+#       already present in the GCS bucket. No upload step needed.
 
 # 5. Install & benchmark each engine (one at a time)
 #    Doris

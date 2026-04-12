@@ -5,7 +5,7 @@
 # DuckDB is an in-process engine — no daemon, no Docker needed.
 # =============================================================================
 set -euo pipefail
-source /opt1/poc/.env 2>/dev/null || { echo "ERROR: /opt1/poc/.env not found."; exit 1; }
+source /opt1/olap_poc/poc/.env 2>/dev/null || { echo "ERROR: /opt1/olap_poc/poc/.env not found."; exit 1; }
 
 LOGFILE="/opt1/logs/duckdb_install.log"
 exec > >(tee -a "$LOGFILE") 2>&1

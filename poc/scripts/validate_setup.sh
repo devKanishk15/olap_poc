@@ -17,7 +17,7 @@ set -euo pipefail
 
 ENGINE="${1:-all}"
 PASS=0; FAIL=0; WARN=0
-ENV_FILE="/opt1/poc/.env"
+ENV_FILE="/opt1/olap_poc/poc/.env"
 
 # Colours
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'

@@ -69,7 +69,7 @@ MODES   = ["local", "gcs"]
 
 def load_env() -> dict:
     env = {**os.environ}
-    for p in [ROOT / ".env", Path("/opt1/poc/.env")]:
+    for p in [ROOT / ".env", Path("/opt1/olap_poc/poc/.env")]:
         if p.exists():
             for line in p.read_text().splitlines():
                 line = line.strip()

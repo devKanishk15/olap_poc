@@ -2,14 +2,14 @@
 # OLAP POC — Makefile
 # Convenience wrapper for all common POC operations.
 # All targets assume the VM is set up (00_vm_prep.sh has been run)
-# and /opt1/poc/.env is configured.
+# and /opt1/olap_poc/poc/.env is configured.
 #
 # Usage:  make <target>
 # =============================================================================
 
 SHELL       := /bin/bash
 PYTHON      := /opt1/poc/.venv/bin/python
-ENV_FILE    := /opt1/poc/.env
+ENV_FILE    := /opt1/olap_poc/poc/.env
 RESULTS_DIR := /opt1/poc/results
 REPORT_DIR  := /opt1/poc/report
 
@@ -67,13 +67,12 @@ prep:
 	sudo bash /opt1/poc/scripts/00_vm_prep.sh
 
 data:
-	@echo "--- Generating synthetic dataset (10M rows) ---"
+	@echo "--- Generating synthetic dataset (10M rows, local only — used for write benchmarks) ---"
 	$(PYTHON) /opt1/poc/data/generate_data.py \
 		--rows  $$(grep DATA_ROW_COUNT $(ENV_FILE) | cut -d= -f2 || echo 10000000) \
 		--seed  $$(grep DATA_SEED      $(ENV_FILE) | cut -d= -f2 || echo 42) \
 		--out   $$(grep DATA_DIR       $(ENV_FILE) | cut -d= -f2 || echo /opt1/data)
-	@echo "--- Uploading to GCS ---"
-	$(PYTHON) /opt1/poc/data/upload_to_gcs.py
+	@echo "--- NOTE: GCS read benchmarks use production data already in the GCS bucket (GCS_BUCKET / GCS_BUCKET_PREFIX). No upload needed. ---"
 
 # ---------------------------------------------------------------------------
 # Install
