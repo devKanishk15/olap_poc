@@ -1,0 +1,64 @@
+version: "3.9"
+
+# =============================================================================
+# ClickHouse — Single-Node Docker Compose
+# Version pinned via CLICKHOUSE_IMAGE env var
+# RAM budget: 6.5 GB  |  Spill to /opt1/clickhouse/tmp
+# =============================================================================
+
+services:
+
+  clickhouse:
+    image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server:24.12}
+    container_name: clickhouse
+    hostname: clickhouse
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    ports:
+      - "8123:8123"   # HTTP interface
+      - "9000:9000"   # Native TCP protocol
+    volumes:
+      # Persistent data
+      - /opt1/clickhouse/data:/var/lib/clickhouse
+      # Logs
+      - /opt1/clickhouse/logs:/var/log/clickhouse-server
+      # Spill / tmp
+      - /opt1/clickhouse/tmp:/var/lib/clickhouse/tmp
+      # User files (for FILE() reads)
+      - /opt1/clickhouse/user_files:/var/lib/clickhouse/user_files
+      # Local data directory (for benchmarking Parquet reads)
+      - /opt1/data:/opt1/data:ro
+      # Custom config overrides
+      - /opt1/clickhouse/config.d/memory_limits.xml:/etc/clickhouse-server/config.d/memory_limits.xml:ro
+      - /opt1/clickhouse/config.d/storage_paths.xml:/etc/clickhouse-server/config.d/storage_paths.xml:ro
+    mem_limit: 7168m    # 7 GB hard limit at Docker level
+    cpus: "4.0"
+    environment:
+      - CLICKHOUSE_DB=${CLICKHOUSE_DATABASE:-poc}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+# ---------------------------------------------------------------------------
+# Memory budget:
+#   Docker limit        : 7 GB
+#   max_server_memory   : 6.5 GB (set in memory_limits.xml)
+#   mark_cache          : 512 MB
+#   uncompressed_cache  : 1 GB
+#   Reserved for OS     : ~1 GB
+#   Total               : 8 GB ✓
+#
+# Key tuning levers (in memory_limits.xml):
+#   max_bytes_before_external_group_by — spill GROUP BY aggregations
+#   max_bytes_before_external_sort     — spill ORDER BY sorts
+#   Both set to 50% of max_server_memory in the config.
+# ---------------------------------------------------------------------------

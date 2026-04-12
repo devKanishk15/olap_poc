@@ -1,0 +1,101 @@
+version: "3.9"
+
+# =============================================================================
+# Apache Doris — Single-Node Docker Compose
+# FE (Frontend / coordinator) + BE (Backend / storage+execution)
+# RAM budget: ~6 GB total (FE 1 GB + BE 5 GB)
+# All data persisted under /opt1/doris
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Frontend (FE) — query coordinator, metadata, SQL parser
+  # ---------------------------------------------------------------------------
+  fe:
+    image: ${DORIS_FE_IMAGE:-apache/doris:2.1.7-fe-x86_64}
+    container_name: doris-fe
+    hostname: doris-fe
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "8030:8030"   # HTTP port (Web UI + REST API)
+      - "9030:9030"   # MySQL protocol port
+      - "9010:9010"   # RPC
+    environment:
+      - JAVA_OPTS=-Xmx1024m -Xms512m -Xss4m
+      - FE_SERVERS=fe1:127.0.0.1:9010
+      - FE_ID=1
+    volumes:
+      - /opt1/doris/fe/meta:/opt/apache-doris/fe/doris-meta
+      - /opt1/doris/fe/log:/opt/apache-doris/fe/log
+    mem_limit: 1536m
+    cpus: "1.0"
+    networks:
+      - doris-net
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8030/api/bootstrap"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Backend (BE) — storage engine, vectorized execution
+  # ---------------------------------------------------------------------------
+  be:
+    image: ${DORIS_BE_IMAGE:-apache/doris:2.1.7-be-x86_64}
+    container_name: doris-be
+    hostname: doris-be
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9060:9060"   # BE thrift port
+      - "8040:8040"   # BE HTTP port
+      - "9050:9050"   # BE heartbeat port
+      - "8899:8899"   # BrpcPort
+    environment:
+      - FE_SERVERS=fe:9010
+      - BE_ADDR=127.0.0.1:9050
+      # Memory: 5 GB hard cap. Doris uses process_memory_limit for BE.
+      - JAVA_OPTS=-Xmx512m
+    volumes:
+      - /opt1/doris/be/storage:/opt/apache-doris/be/storage
+      - /opt1/doris/be/log:/opt/apache-doris/be/log
+      # Spill directory
+      - /opt1/doris/be/storage:/opt/apache-doris/be/spill
+    mem_limit: 5120m
+    cpus: "3.0"
+    depends_on:
+      fe:
+        condition: service_healthy
+    networks:
+      - doris-net
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8040/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+networks:
+  doris-net:
+    driver: bridge
+
+# ---------------------------------------------------------------------------
+# Memory budget summary:
+#   FE container limit : 1.5 GB
+#   BE container limit : 5.0 GB
+#   Reserved for OS    : ~1.5 GB
+#   Total              : 8 GB ✓
+#
+# Note: Doris BE reads process_memory_limit from be.conf.
+# Override by mounting a custom be.conf with:
+#   process_memory_limit = 5368709120   # 5 GB in bytes
+# ---------------------------------------------------------------------------

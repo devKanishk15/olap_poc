@@ -1,0 +1,3 @@
+# Results land here at runtime.
+# JSONL files are written by run_benchmark.py.
+# This file keeps the directory tracked by git.
