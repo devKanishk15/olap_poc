@@ -90,11 +90,10 @@ mysql -h "${DORIS_HOST}" -P "${DORIS_FE_QUERY_PORT}" \
 echo ""
 echo "--- Waiting for BE to register (up to 60s) ---"
 for i in $(seq 1 12); do
-  BE_ALIVE=$(mysql -h "${DORIS_HOST}" -P "${DORIS_FE_QUERY_PORT}" \
-    -u "${DORIS_USER}" --password="${DORIS_PASSWORD}" \
-    --connect-timeout=10 -N -B \
-    -e "SHOW BACKENDS\G" 2>/dev/null | grep -c "Alive: true" || echo "0")
-  if [[ "$BE_ALIVE" -ge 1 ]]; then
+  if mysql -h "${DORIS_HOST}" -P "${DORIS_FE_QUERY_PORT}" \
+      -u "${DORIS_USER}" --password="${DORIS_PASSWORD}" \
+      --connect-timeout=10 -N -B \
+      -e "SHOW BACKENDS\G" 2>/dev/null | grep -q "Alive: true"; then
     echo "  BE is alive after $((i * 5))s"
     break
   fi
