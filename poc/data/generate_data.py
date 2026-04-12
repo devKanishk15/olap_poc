@@ -239,7 +239,7 @@ def generate_chunk(rng: np.random.Generator, start_id: int, n: int) -> pa.Table:
 
     # Ingestion lag: event_ts + random 0–5000 ms
     lag_ms       = rng.integers(50, 5001, size=n).astype(np.int64)
-    ingestion_ts = (event_ts.astype(np.int64) + lag_ms * 1000).astype("datetime64[us]")
+    ingestion_ts = (event_ts.astype("datetime64[ms]").astype(np.int64) + lag_ms).astype("datetime64[ms]")
 
     # Checksums
     checksums    = np.array([
