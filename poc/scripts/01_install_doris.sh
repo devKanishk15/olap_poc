@@ -28,7 +28,11 @@ docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || true
 # 2. Create Doris data directories
 # ---------------------------------------------------------------------------
 echo ""
-echo "--- Creating Doris data directories ---"
+echo "--- Creating Doris data directories (purging stale BDBJE metadata) ---"
+# Wipe FE meta so BDBJE always starts a fresh single-node election group.
+# Without this, leftover journal files from a prior run cause FE to stay
+# in UNKNOWN state indefinitely (it can never reach quorum alone).
+rm -rf /opt1/doris/fe/meta
 mkdir -p /opt1/doris/fe/meta
 mkdir -p /opt1/doris/be/storage
 mkdir -p /opt1/doris/be/log
