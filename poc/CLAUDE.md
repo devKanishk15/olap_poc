@@ -118,6 +118,13 @@ analyse_results.py  →  report/01_raw_results.csv
 
 Q14 (`Q14_gcs_remote_read`) only runs in `--mode gcs`; it is skipped automatically in local mode.
 
+**Q14 reads a CSV file, not Parquet.** It targets `gs://pc_feature/PC_ITEM_IMAGE.csv` via the S3-compatible API. Set these values in `.env`:
+```
+GCS_BUCKET=pc_feature
+GCS_BUCKET_PREFIX=PC_ITEM_IMAGE.csv
+```
+The SQL uses `"format" = "csv"` and `"column_separator" = ","` in the Doris `s3()` TVF. Adjust the `SELECT` columns in `queries/Q14_gcs_remote_read/doris.sql` to match the actual CSV schema.
+
 ### Write workloads (`workloads/`)
 
 Four scripts (`W1_bulk_load.py` through `W4_bulk_update.py`) invoked as subprocesses by the harness. Each accepts `--engine <name>` and prints a JSON result line to stdout.

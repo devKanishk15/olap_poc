@@ -64,7 +64,7 @@ poc/
 - Ubuntu 22.04 LTS VM
 - 4 vCPU, 8 GB RAM, 100 GB SSD mounted at `/opt1`
 - Internet access (Docker Hub, GCS)
-- GCS bucket with data files (Parquet/CSV/ORC)
+- GCS bucket with data files — Q14 reads `gs://pc_feature/PC_ITEM_IMAGE.csv` (CSV); all other GCS queries read Parquet
 
 ---
 
@@ -144,6 +144,17 @@ See `.env.example` for variable names. Two supported methods:
 |--------|----------|---------|
 | HMAC Key | `GCS_HMAC_ACCESS_KEY` + `GCS_HMAC_SECRET` | Doris TVF, ClickHouse `s3()`, DuckDB httpfs |
 | Service Account JSON | `GCS_SA_JSON_PATH` | DuckDB `gcs` extension (if preferred) |
+
+### Q14 GCS target (CSV)
+
+Q14 (`Q14_gcs_remote_read`) reads a CSV file instead of Parquet. Configure `.env`:
+
+```
+GCS_BUCKET=pc_feature
+GCS_BUCKET_PREFIX=PC_ITEM_IMAGE.csv
+```
+
+The query uses `"format" = "csv"` with `"column_separator" = ","` in the Doris `s3()` TVF. Update the `SELECT` columns in [queries/Q14_gcs_remote_read/doris.sql](queries/Q14_gcs_remote_read/doris.sql) to match the actual schema of `PC_ITEM_IMAGE.csv`.
 
 ---
 
