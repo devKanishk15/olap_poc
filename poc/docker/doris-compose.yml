@@ -27,7 +27,7 @@ services:
       - "9010:9010"   # RPC
     environment:
       - JAVA_OPTS=-Xmx1024m -Xms512m -Xss4m
-      - FE_SERVERS=fe1:127.0.0.1:9010
+      - FE_SERVERS=fe1:doris-fe:9010
       - FE_ID=1
     volumes:
       - /opt1/doris/fe/meta:/opt/apache-doris/fe/doris-meta
@@ -38,10 +38,10 @@ services:
       - doris-net
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8030/api/bootstrap"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 60s
 
   # ---------------------------------------------------------------------------
   # Backend (BE) — storage engine, vectorized execution
