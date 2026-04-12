@@ -20,6 +20,7 @@ import json
 import random
 import hashlib
 import struct
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -330,57 +331,89 @@ def generate_chunk(rng: np.random.Generator, start_id: int, n: int) -> pa.Table:
     return pa.table(dict(zip(schema.names, arrays)), schema=schema)
 
 
+def _generate_and_write_chunk(
+    chunk_idx: int,
+    start_id: int,
+    n: int,
+    seed_seq: np.random.SeedSequence,
+    out_root: str,
+) -> tuple[int, int]:
+    """Worker: generate one chunk and write its hive-partition files. Returns (chunk_idx, n)."""
+    rng   = np.random.default_rng(seed_seq)
+    table = generate_chunk(rng, start_id=start_id, n=n)
+
+    dates_in_chunk = table.column("event_date").to_pylist()
+    unique_dates   = sorted(set(dates_in_chunk))
+    root           = Path(out_root)
+
+    for ed in unique_dates:
+        mask      = pa.compute.equal(table.column("event_date"), ed)
+        sub_table = table.filter(mask)
+        part_dir  = root / f"event_date={ed}"
+        try:
+            part_dir.mkdir(parents=True, exist_ok=True)
+        except FileExistsError:
+            pass
+        pq.write_table(
+            sub_table,
+            str(part_dir / f"part-{chunk_idx:05d}.parquet"),
+            compression="snappy",
+            row_group_size=100_000,
+        )
+
+    return chunk_idx, n
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate OLAP POC synthetic dataset")
-    parser.add_argument("--rows",  type=int, default=TOTAL_ROWS_DEFAULT)
-    parser.add_argument("--seed",  type=int, default=SEED_DEFAULT)
-    parser.add_argument("--out",   type=str, default=OUT_DIR_DEFAULT)
-    parser.add_argument("--chunk", type=int, default=CHUNK_SIZE_DEFAULT)
+    parser.add_argument("--rows",    type=int, default=TOTAL_ROWS_DEFAULT)
+    parser.add_argument("--seed",    type=int, default=SEED_DEFAULT)
+    parser.add_argument("--out",     type=str, default=OUT_DIR_DEFAULT)
+    parser.add_argument("--chunk",   type=int, default=CHUNK_SIZE_DEFAULT)
+    parser.add_argument("--workers", type=int, default=min(4, os.cpu_count() or 4),
+                        help="Parallel worker processes (default: min(4, cpu_count))")
     args = parser.parse_args()
 
     out_root = Path(args.out) / "event_fact"
-    rng = np.random.default_rng(args.seed)
+    out_root.mkdir(parents=True, exist_ok=True)
 
     total    = args.rows
     chunk_sz = args.chunk
     n_chunks = (total + chunk_sz - 1) // chunk_sz
 
-    print(f"Generating {total:,} rows  |  chunk={chunk_sz:,}  |  seed={args.seed}")
+    # Derive one independent, reproducible seed per chunk from the master seed.
+    child_seeds = np.random.SeedSequence(args.seed).spawn(n_chunks)
+
+    print(f"Generating {total:,} rows  |  chunk={chunk_sz:,}  |  seed={args.seed}  |  workers={args.workers}")
     print(f"Output root: {out_root}")
 
-    t0 = time.perf_counter()
+    t0           = time.perf_counter()
     rows_written = 0
-    chunk_idx    = 0
 
-    while rows_written < total:
-        this_chunk = min(chunk_sz, total - rows_written)
-        table      = generate_chunk(rng, start_id=rows_written + 1, n=this_chunk)
+    with ProcessPoolExecutor(max_workers=args.workers) as pool:
+        futures = {
+            pool.submit(
+                _generate_and_write_chunk,
+                idx,
+                idx * chunk_sz + 1,
+                min(chunk_sz, total - idx * chunk_sz),
+                child_seeds[idx],
+                str(out_root),
+            ): idx
+            for idx in range(n_chunks)
+        }
 
-        # Group by event_date for hive partitioning
-        dates_in_chunk = table.column("event_date").to_pylist()
-        unique_dates   = sorted(set(dates_in_chunk))
-
-        for ed in unique_dates:
-            mask      = pa.compute.equal(table.column("event_date"), ed)
-            sub_table = table.filter(mask)
-            part_dir  = out_root / f"event_date={ed}"
-            part_dir.mkdir(parents=True, exist_ok=True)
-            part_file = part_dir / f"part-{chunk_idx:05d}.parquet"
-            pq.write_table(
-                sub_table,
-                str(part_file),
-                compression="snappy",
-                row_group_size=100_000,
+        for fut in as_completed(futures):
+            _, n = fut.result()          # re-raises any worker exception
+            rows_written += n
+            elapsed = time.perf_counter() - t0
+            rate    = rows_written / elapsed
+            pct     = rows_written / total * 100
+            print(
+                f"  [{pct:5.1f}%]  {rows_written:>10,} rows  |  "
+                f"{rate:,.0f} rows/s  |  {elapsed:.1f}s elapsed",
+                end="\r", flush=True,
             )
-
-        rows_written += this_chunk
-        chunk_idx    += 1
-        elapsed       = time.perf_counter() - t0
-        rate          = rows_written / elapsed
-        pct           = rows_written / total * 100
-        print(f"  [{pct:5.1f}%]  {rows_written:>10,} rows  |  "
-              f"chunk {chunk_idx}/{n_chunks}  |  {rate:,.0f} rows/s  |  {elapsed:.1f}s elapsed",
-              end="\r", flush=True)
 
     elapsed = time.perf_counter() - t0
     print(f"\nDone: {rows_written:,} rows in {elapsed:.1f}s  ({rows_written/elapsed:,.0f} rows/s)")
@@ -394,6 +427,7 @@ def main():
         "start_date": str(START_DATE),
         "end_date": str(END_DATE),
         "chunk_size": args.chunk,
+        "workers": args.workers,
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "out_dir": str(out_root),
     }
