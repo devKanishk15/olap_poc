@@ -52,9 +52,9 @@ sudo bash scripts/00_vm_prep.sh
 ### 1c. Create Python virtual environment and install dependencies
 
 ```bash
-python3 -m venv /opt1/poc/.venv
-/opt1/poc/.venv/bin/pip install --upgrade pip
-/opt1/poc/.venv/bin/pip install -r harness/requirements.txt
+python3 -m venv /opt1/olap_poc/poc/.venv
+/opt1/olap_poc/poc/.venv/bin/pip install --upgrade pip
+/opt1/olap_poc/poc/.venv/bin/pip install -r harness/requirements.txt
 ```
 
 ### 1d. Validate the setup
@@ -74,13 +74,13 @@ bash scripts/validate_setup.sh
 make data
 
 # or directly:
-/opt1/poc/.venv/bin/python data/generate_data.py \
+/opt1/olap_poc/poc/.venv/bin/python data/generate_data.py \
     --rows 10000000 \
     --seed 42 \
-    --out  /opt1/data
+    --out  /opt1/olap_poc/data
 ```
 
-Output: `~30 Parquet partition files` in `/opt1/data/`.
+Output: `~30 Parquet partition files` in `/opt1/olap_poc/data/`.
 
 ---
 
@@ -159,23 +159,23 @@ make bench-all
 
 ```bash
 # Full run for one engine
-/opt1/poc/.venv/bin/python harness/run_benchmark.py --engine doris      --mode local
-/opt1/poc/.venv/bin/python harness/run_benchmark.py --engine duckdb     --mode local
-/opt1/poc/.venv/bin/python harness/run_benchmark.py --engine clickhouse --mode local
+/opt1/olap_poc/poc/.venv/bin/python harness/run_benchmark.py --engine doris      --mode local
+/opt1/olap_poc/poc/.venv/bin/python harness/run_benchmark.py --engine duckdb     --mode local
+/opt1/olap_poc/poc/.venv/bin/python harness/run_benchmark.py --engine clickhouse --mode local
 
 # GCS mode
-/opt1/poc/.venv/bin/python harness/run_benchmark.py --engine duckdb --mode gcs
+/opt1/olap_poc/poc/.venv/bin/python harness/run_benchmark.py --engine duckdb --mode gcs
 
 # Run a subset of queries only
-/opt1/poc/.venv/bin/python harness/run_benchmark.py --engine clickhouse --mode local \
+/opt1/olap_poc/poc/.venv/bin/python harness/run_benchmark.py --engine clickhouse --mode local \
     --queries Q01,Q03,Q05
 
 # Skip write workloads (reads only)
-/opt1/poc/.venv/bin/python harness/run_benchmark.py --engine doris --mode gcs \
+/opt1/olap_poc/poc/.venv/bin/python harness/run_benchmark.py --engine doris --mode gcs \
     --skip-writes
 
 # Write workloads only (W1–W4, no read queries)
-/opt1/poc/.venv/bin/python harness/run_benchmark.py --engine duckdb --mode local \
+/opt1/olap_poc/poc/.venv/bin/python harness/run_benchmark.py --engine duckdb --mode local \
     --writes-only
 ```
 
@@ -184,11 +184,11 @@ make bench-all
 ```bash
 # Override warm iterations and timeout
 WARM_ITERATIONS=3 QUERY_TIMEOUT_SECONDS=120 \
-    /opt1/poc/.venv/bin/python harness/run_benchmark.py --engine duckdb --mode local
+    /opt1/olap_poc/poc/.venv/bin/python harness/run_benchmark.py --engine duckdb --mode local
 
 # Override results and log directories
 RESULTS_DIR=/tmp/results LOGS_DIR=/tmp/logs \
-    /opt1/poc/.venv/bin/python harness/run_benchmark.py --engine clickhouse --mode local
+    /opt1/olap_poc/poc/.venv/bin/python harness/run_benchmark.py --engine clickhouse --mode local
 ```
 
 ---
@@ -233,8 +233,8 @@ RESULTS_DIR=/tmp/results LOGS_DIR=/tmp/logs \
 make analyse
 
 # or directly:
-/opt1/poc/.venv/bin/python report/analyse_results.py \
-    --results /opt1/poc/results \
+/opt1/olap_poc/poc/.venv/bin/python report/analyse_results.py \
+    --results /opt1/olap_poc/poc/results \
     --out     report/
 ```
 
@@ -289,7 +289,7 @@ make clean-results
 ```bash
 # 1. One-time setup
 make prep
-/opt1/poc/.venv/bin/pip install -r harness/requirements.txt
+/opt1/olap_poc/poc/.venv/bin/pip install -r harness/requirements.txt
 make data
 
 # 2. Doris
@@ -333,7 +333,7 @@ make bench-all   # installs → schemas → benchmarks → tears down → analys
 | `Cannot connect to doris` | Run `make install-doris`; check `docker ps` |
 | `Could not drop OS cache (need root)` | Cold run timing will be unreliable; run as root or with `sudo` |
 | DuckDB spill warnings | Expected for Q12; `/opt1/duckdb/spill` must have free space |
-| Result files empty | Check `/opt1/poc/results/` — JSONL written per run; check `RESULTS_DIR` override |
+| Result files empty | Check `/opt1/olap_poc/poc/results/` — JSONL written per run; check `RESULTS_DIR` override |
 | Q14 skipped in local mode | Correct — Q14 is a GCS-only query; use `--mode gcs` to run it |
 
 ---
@@ -343,9 +343,9 @@ make bench-all   # installs → schemas → benchmarks → tears down → analys
 | Path | Purpose |
 |------|---------|
 | `/opt1/olap_poc/poc/.env` | Credentials and config (never commit) |
-| `/opt1/poc/.venv/` | Python virtual environment |
-| `/opt1/data/` | Generated Parquet dataset |
-| `/opt1/poc/results/` | JSONL benchmark output files |
-| `/opt1/poc/report/` | Analysis outputs (CSV, charts, MD report) |
-| `/opt1/logs/` | Engine and harness logs |
-| `/opt1/duckdb/spill/` | DuckDB spill-to-disk directory |
+| `/opt1/olap_poc/poc/.venv/` | Python virtual environment |
+| `/opt1/olap_poc/data/` | Generated Parquet dataset |
+| `/opt1/olap_poc/poc/results/` | JSONL benchmark output files |
+| `/opt1/olap_poc/poc/report/` | Analysis outputs (CSV, charts, MD report) |
+| `/opt1/olap_poc/logs/` | Engine and harness logs |
+| `/opt1/olap_poc/duckdb/spill/` | DuckDB spill-to-disk directory |
