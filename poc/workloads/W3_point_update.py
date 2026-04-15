@@ -94,8 +94,24 @@ def point_update_doris(env: dict, iterations: int) -> dict:
     user = env.get("DORIS_USER", "root")
     pw   = env.get("DORIS_PASSWORD", "")
 
+    # Retry the initial connection — Doris FE may still be coming up after a
+    # previous workload caused it to restart.
+    _CONN_RETRIES = 3
+    _CONN_DELAY   = 5
+    conn = None
+    for _attempt in range(1, _CONN_RETRIES + 1):
+        try:
+            conn = mysql.connector.connect(
+                host=host, port=port, user=user, password=pw,
+                database="poc", connection_timeout=10,
+            )
+            break
+        except Exception as _exc:
+            if _attempt == _CONN_RETRIES:
+                return {"status": "ERROR", "error": str(_exc)}
+            time.sleep(_CONN_DELAY)
+
     try:
-        conn = mysql.connector.connect(host=host, port=port, user=user, password=pw, database="poc")
         cur  = conn.cursor()
 
         # Check if table supports UPDATE (Unique Key MoW)
