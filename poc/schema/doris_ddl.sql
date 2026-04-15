@@ -17,9 +17,9 @@ CREATE TABLE event_fact (
     -- Primary / time dimensions
     event_id                BIGINT          NOT NULL    COMMENT 'Unique row identifier',
     event_date              DATE            NOT NULL    COMMENT 'Partition key — date of event',
+    user_id                 BIGINT          NOT NULL    COMMENT 'User identifier (~500k distinct)',
     event_ts                DATETIME(6)     NOT NULL    COMMENT 'Full event timestamp (microsecond)',
     session_id              VARCHAR(36)     NOT NULL    COMMENT 'UUID session identifier (high cardinality)',
-    user_id                 BIGINT          NOT NULL    COMMENT 'User identifier (~500k distinct)',
     device_id               VARCHAR(40)     NOT NULL    COMMENT 'Device fingerprint (high cardinality)',
 
     -- Event classification
