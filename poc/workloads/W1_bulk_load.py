@@ -10,6 +10,7 @@ Run via the harness (run_benchmark.py) or standalone:
 """
 
 import argparse
+import base64
 import os
 import sys
 import time
@@ -49,21 +50,26 @@ def bulk_load_doris(env: dict) -> dict:
     files_loaded = 0
     t_start = time.perf_counter()
 
+    # Encode credentials directly in the header so the Authorization header
+    # is preserved when requests follows the FE→BE redirect (requests strips
+    # the auth= kwarg on cross-host/port redirects by default).
+    _token = base64.b64encode(f"{user}:{passwd}".encode()).decode()
+
     for pf in parquet_files:
         label = f"bulk_load_{pf.stem}_{int(time.time())}"
         headers = {
-            "label":          label,
-            "format":         "parquet",
-            "where":          "",
+            "label":            label,
+            "format":           "parquet",
+            "where":            "",
             "max_filter_ratio": "0.01",
-            "Expect":         "100-continue",
+            "Expect":           "100-continue",
+            "Authorization":    f"Basic {_token}",
         }
         with open(pf, "rb") as f:
             resp = requests.put(
                 url,
                 data=f,
                 headers=headers,
-                auth=(user, passwd),
                 timeout=300,
             )
         result = resp.json()
