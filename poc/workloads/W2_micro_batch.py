@@ -99,55 +99,43 @@ def generate_micro_batch(rng: np.random.Generator, batch_size: int, batch_idx: i
     return rows
 
 
-def _csv_val(v) -> str:
-    """Serialize a Python value to a CSV field string for Doris stream-load."""
-    if v is None:
-        return r"\N"
-    if isinstance(v, bool):
-        return "1" if v else "0"
-    return str(v)
-
-
 def insert_doris(rows: list[dict], env: dict) -> float:
-    """Insert via Doris HTTP stream-load API (CSV in-memory).
+    """Insert via Doris HTTP stream-load API (JSON format).
+
+    JSON is used instead of CSV because the custom_dimensions column stores
+    a JSON string with embedded commas, which breaks CSV column-count parsing
+    when Doris 2.1.x does not reliably honour the enclose/escape CSV headers.
+    JSON stream-load handles None→null, bool→true/false, and embedded commas
+    natively with no quoting edge-cases.
 
     The MySQL protocol (port 9030) path was replaced because Doris FE's MySQL
-    handler crashes under sustained multi-row INSERT load, dropping port 9030
+    handler OOM-crashes under sustained multi-row INSERT load, dropping port 9030
     and causing all subsequent workloads (W3, W4) to fail with ECONNREFUSED.
-    Stream-load (port 8030) is the recommended high-throughput ingest path and
-    matches the pattern already used by W1.
     """
     import requests
     import base64
-    import io
-    import csv as _csv
+    import json as _json
 
     host   = env.get("DORIS_HOST", "127.0.0.1")
     http   = env.get("DORIS_FE_HTTP_PORT", "8030")
     user   = env.get("DORIS_USER", "root")
     passwd = env.get("DORIS_PASSWORD", "")
 
-    cols = list(rows[0].keys())
-
-    # Serialize rows to CSV in-memory. Use \N for NULLs (Doris default null value).
-    buf = io.StringIO()
-    w = _csv.writer(buf)
-    for r in rows:
-        w.writerow([_csv_val(r[c]) for c in cols])
-    csv_bytes = buf.getvalue().encode()
+    # Serialize as NDJSON (newline-delimited JSON): one JSON object per line.
+    # This is Doris's default JSON stream-load mode — no extra headers required.
+    # strip_outer_array=true (JSON array mode) was tried but Doris 2.1.x treats
+    # the whole array as NumberTotalRows=1 and rejects it as a data quality error.
+    # Python's json module maps: None→null, bool→true/false, str stays as string.
+    ndjson_bytes = "\n".join(
+        _json.dumps(row, default=str) for row in rows
+    ).encode()
 
     _token = base64.b64encode(f"{user}:{passwd}".encode()).decode()
-    # Label must be unique per load job; append nanoseconds to avoid collision
-    # when batches run within the same second.
+    # Label must be unique per load job; nanoseconds avoid collision within the same second.
     label = f"micro_batch_{int(time.time_ns())}"
     headers = {
         "label":            label,
-        "format":           "csv",
-        "column_separator": ",",
-        "columns":          ",".join(cols),
-        "enclose":          '"',       # CSV quoting char
-        "escape":           '"',       # CSV escape char
-        "null_format":      r"\N",
+        "format":           "json",
         "max_filter_ratio": "0.01",
         "Expect":           "100-continue",
         "Authorization":    f"Basic {_token}",
@@ -158,16 +146,25 @@ def insert_doris(rows: list[dict], env: dict) -> float:
     t0 = time.perf_counter()
     # Doris FE issues a 307 redirect to a BE node. Follow manually to preserve
     # the Authorization header (requests strips it on cross-origin redirects).
-    resp = requests.put(url, data=csv_bytes, headers=headers,
+    resp = requests.put(url, data=ndjson_bytes, headers=headers,
                         timeout=120, allow_redirects=False)
     if resp.status_code in (301, 302, 307, 308):
         be_url = resp.headers.get("Location", url)
-        resp = requests.put(be_url, data=csv_bytes, headers=headers, timeout=120)
+        resp = requests.put(be_url, data=ndjson_bytes, headers=headers, timeout=120)
     elapsed = time.perf_counter() - t0
 
     result = resp.json()
     if result.get("Status") not in ("Success", "Publish Timeout"):
-        raise RuntimeError(f"stream-load failed: {result}")
+        # Fetch the BE error log for a human-readable explanation of the rejection.
+        error_detail = ""
+        error_url = result.get("ErrorURL")
+        if error_url:
+            try:
+                err_resp = requests.get(error_url, timeout=10)
+                error_detail = f"\nError log: {err_resp.text[:600]}"
+            except Exception:
+                pass
+        raise RuntimeError(f"stream-load failed: {result}{error_detail}")
 
     return elapsed
 
