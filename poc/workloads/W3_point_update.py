@@ -170,8 +170,10 @@ def point_update_doris(env: dict, iterations: int) -> dict:
 def point_update_clickhouse(env: dict, iterations: int) -> dict:
     """
     ClickHouse ALTER TABLE ... UPDATE mutation.
-    Mutations are ASYNC — we measure submission latency + poll for completion.
-    This is a fundamental semantic difference: document it clearly.
+    Mutations are ASYNC — we measure submission latency per mutation, then do
+    a single batch poll for all mutations to complete after all submissions.
+    This is the correct usage pattern: submitting one-by-one and waiting after
+    each would serialize 1000+ mutations × up to 30s each, blowing any timeout.
     """
     import requests
 
@@ -184,10 +186,11 @@ def point_update_clickhouse(env: dict, iterations: int) -> dict:
     base   = f"http://{host}:{port}/"
 
     submission_latencies = []
-    completion_latencies = []
     errors = 0
     rng    = random.Random(77)
 
+    # Phase 1: submit all mutations, record submission latency per mutation.
+    submit_phase_start = time.perf_counter()
     for i in range(iterations):
         eid     = SAMPLE_IDS[i % len(SAMPLE_IDS)]
         new_lag = rng.randint(50, 5000)
@@ -196,39 +199,37 @@ def point_update_clickhouse(env: dict, iterations: int) -> dict:
             f"UPDATE processing_lag_ms = {new_lag}, data_version = 5 "
             f"WHERE event_id = {eid}"
         )
-        t0 = time.perf_counter()
+        t0   = time.perf_counter()
         resp = requests.post(base, params={"query": sql}, auth=auth, timeout=30)
-        submit_elapsed = time.perf_counter() - t0
-
+        submission_latencies.append(time.perf_counter() - t0)
         if resp.status_code != 200:
             errors += 1
-            continue
 
-        submission_latencies.append(submit_elapsed)
+    # Phase 2: single batch poll — wait until no pending mutations remain.
+    # Timeout: 300s (generous, but bounded; avoids infinite hang).
+    _POLL_TIMEOUT = 300
+    poll_start    = time.perf_counter()
+    all_done      = False
+    for _ in range(_POLL_TIMEOUT * 2):   # 0.5s sleep → 2 polls/s
+        time.sleep(0.5)
+        check = requests.get(
+            base,
+            params={"query":
+                f"SELECT count() FROM system.mutations "
+                f"WHERE database='{db}' AND table='event_fact' "
+                f"AND is_done=0 FORMAT TSV"},
+            auth=auth, timeout=10,
+        )
+        pending = int(check.text.strip() or "0")
+        if pending == 0:
+            all_done = True
+            break
 
-        # Poll for mutation completion (up to 30s)
-        mutation_done  = False
-        poll_start     = time.perf_counter()
-        for _ in range(60):
-            time.sleep(0.5)
-            check = requests.get(
-                base,
-                params={"query":
-                    f"SELECT is_done FROM system.mutations "
-                    f"WHERE database='{db}' AND table='event_fact' "
-                    f"AND is_done=0 ORDER BY create_time DESC LIMIT 1 FORMAT TSV"},
-                auth=auth, timeout=10,
-            )
-            if check.text.strip() == "":
-                mutation_done = True
-                break
-        completion_latencies.append(time.perf_counter() - poll_start)
+    completion_s = time.perf_counter() - poll_start
+    if not all_done:
+        errors += pending   # count undone mutations as errors
 
-        if not mutation_done:
-            errors += 1
-
-    sl = sorted(submission_latencies)
-    cl = sorted(completion_latencies)
+    sl  = sorted(submission_latencies)
     p95 = int(max(len(sl) * 0.95, 0))
 
     return {
@@ -237,8 +238,7 @@ def point_update_clickhouse(env: dict, iterations: int) -> dict:
         "errors":             errors,
         "submit_median_ms":   round(sl[len(sl)//2] * 1000, 3) if sl else None,
         "submit_p95_ms":      round(sl[p95] * 1000, 3) if sl else None,
-        "complete_median_ms": round(cl[len(cl)//2] * 1000, 3) if cl else None,
-        "complete_p95_ms":    round(cl[p95] * 1000, 3) if cl else None,
+        "completion_total_s": round(completion_s, 3),
         "semantic_note": (
             "ClickHouse mutations are ASYNCHRONOUS. Submission is fast (~ms); "
             "completion rewrites entire data parts and can take seconds to minutes. "
