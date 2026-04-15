@@ -32,6 +32,11 @@ mkdir -p /opt1/olap_poc/clickhouse/data
 mkdir -p /opt1/olap_poc/clickhouse/logs
 mkdir -p /opt1/olap_poc/clickhouse/tmp
 mkdir -p /opt1/olap_poc/clickhouse/user_files
+# ClickHouse runs as uid 101 inside the container — must own these bind-mount dirs
+chown -R 101:101 /opt1/olap_poc/clickhouse/data \
+                 /opt1/olap_poc/clickhouse/logs \
+                 /opt1/olap_poc/clickhouse/tmp \
+                 /opt1/olap_poc/clickhouse/user_files
 echo "  Directories created."
 
 # ---------------------------------------------------------------------------
@@ -65,9 +70,10 @@ cat > /opt1/olap_poc/clickhouse/config.d/memory_limits.xml << 'XML'
 
     <!-- Uncompressed cache: 1 GB -->
     <uncompressed_cache_size>1073741824</uncompressed_cache_size>
-
-    <!-- Background merge pool threads -->
-    <background_pool_size>4</background_pool_size>
+    <!-- background_pool_size intentionally left at default (16).
+         ClickHouse 24.12 enforces: pool_size * background_merges_mutations_concurrency_ratio
+         >= number_of_free_entries_in_pool_to_execute_mutation (default 20).
+         Setting pool_size=4 gives 4*2=8 < 20 → fatal BAD_ARGUMENTS crash. -->
 </clickhouse>
 XML
 
