@@ -348,7 +348,7 @@ def run_clickhouse(sql: str, env: dict, timeout: int) -> dict:
     base   = f"http://{host}:{port}/"
 
     params = {
-        "query":    sql + " FORMAT JSON",
+        "query":    sql.rstrip().rstrip(";") + " FORMAT JSON",
         "database": db,
         "max_execution_time": timeout,
     }
