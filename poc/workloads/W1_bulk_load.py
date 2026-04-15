@@ -65,6 +65,7 @@ def bulk_load_doris(env: dict) -> dict:
             "label":            label,
             "format":           "parquet",
             "max_filter_ratio": "0.01",
+            "Expect":           "100-continue",   # required by Doris BE
             "Authorization":    f"Basic {_token}",
         }
         with open(pf, "rb") as fh:
@@ -73,7 +74,8 @@ def bulk_load_doris(env: dict) -> dict:
         # First leg: FE (may respond with 307 redirect to BE)
         resp = requests.put(url, data=file_bytes, headers=headers,
                             timeout=300, allow_redirects=False)
-        # Follow any redirect manually so the Authorization header is preserved
+        # Follow any redirect manually so the Authorization header is preserved.
+        # Doris BE requires Expect: 100-continue, so the header is kept as-is.
         if resp.status_code in (301, 302, 307, 308):
             be_url = resp.headers.get("Location", url)
             resp = requests.put(be_url, data=file_bytes, headers=headers, timeout=300)

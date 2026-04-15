@@ -107,7 +107,10 @@ def insert_doris(rows: list[dict], env: dict) -> float:
     user  = env.get("DORIS_USER", "root")
     pw    = env.get("DORIS_PASSWORD", "")
 
-    conn = mysql.connector.connect(host=host, port=port, user=user, password=pw, database="poc")
+    conn = mysql.connector.connect(
+        host=host, port=port, user=user, password=pw, database="poc",
+        connection_timeout=120,
+    )
     cur  = conn.cursor()
 
     cols = list(rows[0].keys())
@@ -115,10 +118,11 @@ def insert_doris(rows: list[dict], env: dict) -> float:
     sql  = f"INSERT INTO event_fact ({','.join(cols)}) VALUES ({placeholders})"
     vals = [tuple(r[c] for c in cols) for r in rows]
 
-    # Chunk into 500-row sub-batches to stay under Doris's max_allowed_packet.
-    # A single executemany() with 10k rows × ~50 columns produces a packet that
-    # exceeds the default limit and causes Doris to drop the connection.
-    _CHUNK = 500
+    # Chunk into 100-row sub-batches. Doris FE's MySQL protocol handler crashes
+    # (drops the connection and takes down port 9030) when processing large
+    # multi-row INSERTs — 500 rows was still too heavy on constrained hardware.
+    # 100 rows × ~50 columns ≈ 75 KB per packet, well under any reasonable limit.
+    _CHUNK = 100
     t0 = time.perf_counter()
     for _start in range(0, len(vals), _CHUNK):
         cur.executemany(sql, vals[_start:_start + _CHUNK])
