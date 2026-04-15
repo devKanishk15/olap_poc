@@ -337,6 +337,19 @@ def run_duckdb(sql: str, env: dict, timeout: int) -> dict:
     }
 
 
+def _strip_sql(sql: str) -> str:
+    """Strip trailing comment lines, whitespace, and semicolons.
+
+    FORMAT JSON must be appended after the real SQL. If a query file ends with
+    '--' comment lines the format clause would land inside the comment and be
+    silently ignored, causing ClickHouse to return TabSeparated instead of JSON.
+    """
+    lines = sql.splitlines()
+    while lines and lines[-1].strip().startswith("--"):
+        lines.pop()
+    return "\n".join(lines).rstrip().rstrip(";")
+
+
 def run_clickhouse(sql: str, env: dict, timeout: int) -> dict:
     import requests
     host   = env.get("CLICKHOUSE_HOST", "127.0.0.1")
@@ -348,7 +361,7 @@ def run_clickhouse(sql: str, env: dict, timeout: int) -> dict:
     base   = f"http://{host}:{port}/"
 
     params = {
-        "query":    sql.rstrip().rstrip(";") + " FORMAT JSON",
+        "query":    _strip_sql(sql) + " FORMAT JSON",
         "database": db,
         "max_execution_time": timeout,
     }
