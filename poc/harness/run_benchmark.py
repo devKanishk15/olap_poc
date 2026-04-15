@@ -89,6 +89,40 @@ def _preflight_fail(msg: str) -> None:
     sys.exit(f"\nPreflight check failed: {msg}\n")
 
 
+def wait_for_doris(env: dict, retries: int = 10, delay: float = 6.0) -> bool:
+    """Attempt a trivial MySQL connection to Doris FE.  Return True if reachable.
+
+    Called before MySQL-protocol workloads (W3, W4) to guard against cascade
+    failures when the FE restarts after a bad W2 run.  Total wait window:
+    retries × delay = 60 s by default.
+    """
+    try:
+        import mysql.connector
+    except ImportError:
+        return False
+    host = env.get("DORIS_HOST", "127.0.0.1")
+    port = int(env.get("DORIS_FE_QUERY_PORT", "9030"))
+    user = env.get("DORIS_USER", "root")
+    pw   = env.get("DORIS_PASSWORD", "")
+    for attempt in range(1, retries + 1):
+        try:
+            conn = mysql.connector.connect(
+                host=host, port=port, user=user, password=pw,
+                connection_timeout=5,
+            )
+            conn.close()
+            return True
+        except Exception:
+            if attempt < retries:
+                print(
+                    f"\n  [health] Doris FE not ready "
+                    f"(attempt {attempt}/{retries}), retrying in {delay:.0f}s...",
+                    end="", flush=True,
+                )
+                time.sleep(delay)
+    return False
+
+
 def preflight_check(engine: str, env: dict) -> None:
     """Fail fast if the engine isn't reachable or poc.event_fact doesn't exist."""
     print(f"  [preflight] Verifying {engine} connectivity and schema...", end=" ", flush=True)
@@ -521,6 +555,29 @@ def main():
             if not wscript.exists():
                 print(f"  SKIP: {wname} (script not found)")
                 continue
+
+            # Guard: before MySQL-protocol workloads, verify Doris FE is up.
+            # W2 previously caused FE to crash (OOM), leaving port 9030 down and
+            # making W3/W4 fail immediately with ECONNREFUSED.
+            if args.engine == "doris" and wname in ("W3_point_update", "W4_bulk_update"):
+                print(f"\n  [health] Checking Doris FE before {wname}...", end="", flush=True)
+                if not wait_for_doris(env):
+                    print(" UNAVAILABLE")
+                    w_result = {
+                        "workload":  wname,
+                        "engine":    args.engine,
+                        "status":    "SKIPPED",
+                        "reason":    "Doris FE (port 9030) unavailable after previous workload",
+                        "wall_s":    0,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                    all_results.append(w_result)
+                    with open(out_file, "a") as f:
+                        f.write(json.dumps(w_result) + "\n")
+                    print(f"  [{wname}] SKIPPED (Doris FE down)")
+                    continue
+                print(" OK")
+
             print(f"\n  [{wname}]", end="", flush=True)
             t0   = time.perf_counter()
             proc = subprocess.run(

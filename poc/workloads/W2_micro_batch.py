@@ -99,38 +99,76 @@ def generate_micro_batch(rng: np.random.Generator, batch_size: int, batch_idx: i
     return rows
 
 
-def insert_doris(rows: list[dict], env: dict) -> float:
-    """Insert via MySQL protocol using mysql-connector."""
-    import mysql.connector
-    host  = env.get("DORIS_HOST", "127.0.0.1")
-    port  = int(env.get("DORIS_FE_QUERY_PORT", "9030"))
-    user  = env.get("DORIS_USER", "root")
-    pw    = env.get("DORIS_PASSWORD", "")
+def _csv_val(v) -> str:
+    """Serialize a Python value to a CSV field string for Doris stream-load."""
+    if v is None:
+        return r"\N"
+    if isinstance(v, bool):
+        return "1" if v else "0"
+    return str(v)
 
-    conn = mysql.connector.connect(
-        host=host, port=port, user=user, password=pw, database="poc",
-        connection_timeout=120,
-    )
-    cur  = conn.cursor()
+
+def insert_doris(rows: list[dict], env: dict) -> float:
+    """Insert via Doris HTTP stream-load API (CSV in-memory).
+
+    The MySQL protocol (port 9030) path was replaced because Doris FE's MySQL
+    handler crashes under sustained multi-row INSERT load, dropping port 9030
+    and causing all subsequent workloads (W3, W4) to fail with ECONNREFUSED.
+    Stream-load (port 8030) is the recommended high-throughput ingest path and
+    matches the pattern already used by W1.
+    """
+    import requests
+    import base64
+    import io
+    import csv as _csv
+
+    host   = env.get("DORIS_HOST", "127.0.0.1")
+    http   = env.get("DORIS_FE_HTTP_PORT", "8030")
+    user   = env.get("DORIS_USER", "root")
+    passwd = env.get("DORIS_PASSWORD", "")
 
     cols = list(rows[0].keys())
-    placeholders = ",".join(["%s"] * len(cols))
-    sql  = f"INSERT INTO event_fact ({','.join(cols)}) VALUES ({placeholders})"
-    vals = [tuple(r[c] for c in cols) for r in rows]
 
-    # Chunk into 100-row sub-batches. Doris FE's MySQL protocol handler crashes
-    # (drops the connection and takes down port 9030) when processing large
-    # multi-row INSERTs — 500 rows was still too heavy on constrained hardware.
-    # 100 rows × ~50 columns ≈ 75 KB per packet, well under any reasonable limit.
-    _CHUNK = 100
+    # Serialize rows to CSV in-memory. Use \N for NULLs (Doris default null value).
+    buf = io.StringIO()
+    w = _csv.writer(buf)
+    for r in rows:
+        w.writerow([_csv_val(r[c]) for c in cols])
+    csv_bytes = buf.getvalue().encode()
+
+    _token = base64.b64encode(f"{user}:{passwd}".encode()).decode()
+    # Label must be unique per load job; append nanoseconds to avoid collision
+    # when batches run within the same second.
+    label = f"micro_batch_{int(time.time_ns())}"
+    headers = {
+        "label":            label,
+        "format":           "csv",
+        "column_separator": ",",
+        "columns":          ",".join(cols),
+        "enclose":          '"',       # CSV quoting char
+        "escape":           '"',       # CSV escape char
+        "null_format":      r"\N",
+        "max_filter_ratio": "0.01",
+        "Expect":           "100-continue",
+        "Authorization":    f"Basic {_token}",
+    }
+
+    url = f"http://{host}:{http}/api/poc/event_fact/_stream_load"
+
     t0 = time.perf_counter()
-    for _start in range(0, len(vals), _CHUNK):
-        cur.executemany(sql, vals[_start:_start + _CHUNK])
-    conn.commit()
+    # Doris FE issues a 307 redirect to a BE node. Follow manually to preserve
+    # the Authorization header (requests strips it on cross-origin redirects).
+    resp = requests.put(url, data=csv_bytes, headers=headers,
+                        timeout=120, allow_redirects=False)
+    if resp.status_code in (301, 302, 307, 308):
+        be_url = resp.headers.get("Location", url)
+        resp = requests.put(be_url, data=csv_bytes, headers=headers, timeout=120)
     elapsed = time.perf_counter() - t0
 
-    cur.close()
-    conn.close()
+    result = resp.json()
+    if result.get("Status") not in ("Success", "Publish Timeout"):
+        raise RuntimeError(f"stream-load failed: {result}")
+
     return elapsed
 
 
