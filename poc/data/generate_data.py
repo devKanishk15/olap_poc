@@ -3,13 +3,13 @@
 generate_data.py — Synthetic 10M-row dataset generator for the OLAP POC.
 
 Produces hive-partitioned Parquet files in:
-  /opt1/data/event_fact/event_date=YYYY-MM-DD/part-NNNN.parquet
+  /opt1/olap_poc/data/event_fact/event_date=YYYY-MM-DD/part-NNNN.parquet
 
 Uses deterministic seed=42 so all three engines ingest identical data.
 Streams data in configurable chunk sizes to stay within 8 GB RAM.
 
 Usage:
-    python generate_data.py [--rows 10000000] [--seed 42] [--out /opt1/data] [--chunk 250000]
+    python generate_data.py [--rows 10000000] [--seed 42] [--out /opt1/olap_poc/data] [--chunk 250000]
 """
 
 import argparse
@@ -34,7 +34,7 @@ import pyarrow.parquet as pq
 # ---------------------------------------------------------------------------
 TOTAL_ROWS_DEFAULT   = 10_000_000
 SEED_DEFAULT         = 42
-OUT_DIR_DEFAULT      = "/opt1/data"
+OUT_DIR_DEFAULT      = "/opt1/olap_poc/data"
 CHUNK_SIZE_DEFAULT   = 250_000          # rows per write batch (~100 MB/chunk)
 START_DATE           = date(2024, 1, 1)
 END_DATE             = date(2024, 1, 30)  # 30 days

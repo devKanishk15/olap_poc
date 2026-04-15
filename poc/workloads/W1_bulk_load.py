@@ -19,9 +19,9 @@ import glob
 from pathlib import Path
 from datetime import datetime, timezone
 
-ROOT      = Path(os.environ.get("POC_DIR", "/opt1/poc"))
-DATA_DIR  = Path(os.environ.get("DATA_DIR", "/opt1/data"))
-RESULTS   = Path(os.environ.get("RESULTS_DIR", "/opt1/poc/results"))
+ROOT      = Path(os.environ.get("POC_DIR", "/opt1/olap_poc/poc"))
+DATA_DIR  = Path(os.environ.get("DATA_DIR", "/opt1/olap_poc/data"))
+RESULTS   = Path(os.environ.get("RESULTS_DIR", "/opt1/olap_poc/poc/results"))
 
 
 # ---------------------------------------------------------------------------
@@ -86,12 +86,12 @@ def bulk_load_duckdb(env: dict) -> dict:
     """INSERT INTO ... SELECT * FROM read_parquet(glob)."""
     import duckdb
 
-    db_path = env.get("DUCKDB_DB_PATH", "/opt1/duckdb/benchmark.duckdb")
+    db_path = env.get("DUCKDB_DB_PATH", "/opt1/olap_poc/duckdb/benchmark.duckdb")
     parquet_glob = str(DATA_DIR / "event_fact" / "**" / "*.parquet")
 
     con = duckdb.connect(db_path)
     con.execute("SET memory_limit = '6GB'")
-    con.execute(f"SET temp_directory = '/opt1/duckdb/spill'")
+    con.execute(f"SET temp_directory = '/opt1/olap_poc/duckdb/spill'")
     con.execute("SET threads = 4")
     con.execute("LOAD parquet")
 

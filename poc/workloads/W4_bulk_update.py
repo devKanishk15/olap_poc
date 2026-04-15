@@ -23,8 +23,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT    = Path(os.environ.get("POC_DIR", "/opt1/poc"))
-RESULTS = Path(os.environ.get("RESULTS_DIR", "/opt1/poc/results"))
+ROOT    = Path(os.environ.get("POC_DIR", "/opt1/olap_poc/poc"))
+RESULTS = Path(os.environ.get("RESULTS_DIR", "/opt1/olap_poc/poc/results"))
 
 # Target segment: server_id IN (1..16) → ~50% of servers → ~5M rows
 # For ~5% touch rate, use country_code = 'US' (≈ 1/60 countries × adjusted dist = ~8%)
@@ -34,7 +34,7 @@ EXPECTED_TOUCH_PCT = "~5%"
 
 def bulk_update_duckdb(env: dict) -> dict:
     import duckdb
-    db_path = env.get("DUCKDB_DB_PATH", "/opt1/duckdb/benchmark.duckdb")
+    db_path = env.get("DUCKDB_DB_PATH", "/opt1/olap_poc/duckdb/benchmark.duckdb")
     con     = duckdb.connect(db_path)
 
     sql = f"""

@@ -2,7 +2,7 @@
 """
 analyse_results.py — Aggregate JSONL results into summary tables and charts.
 
-Reads all .jsonl files from /opt1/poc/results/, produces:
+Reads all .jsonl files from /opt1/olap_poc/poc/results/, produces:
   - 01_raw_results.csv
   - 02_summary_table.md
   - 03_charts/latency_*.png
@@ -10,7 +10,7 @@ Reads all .jsonl files from /opt1/poc/results/, produces:
   - 03_charts/memory_*.png
 
 Usage:
-    python report/analyse_results.py [--results /opt1/poc/results] [--out /opt1/poc/report]
+    python report/analyse_results.py [--results /opt1/olap_poc/poc/results] [--out /opt1/olap_poc/poc/report]
 """
 
 import argparse
@@ -218,8 +218,8 @@ def make_write_chart(write_df: pd.DataFrame, charts_dir: Path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--results", default="/opt1/poc/results")
-    parser.add_argument("--out",     default="/opt1/poc/report")
+    parser.add_argument("--results", default="/opt1/olap_poc/poc/results")
+    parser.add_argument("--out",     default="/opt1/olap_poc/poc/report")
     args = parser.parse_args()
 
     results_dir = Path(args.results)

@@ -7,7 +7,7 @@
 set -euo pipefail
 source /opt1/olap_poc/poc/.env 2>/dev/null || { echo "ERROR: /opt1/olap_poc/poc/.env not found. Copy .env.example and fill it in."; exit 1; }
 
-LOGFILE="/opt1/logs/doris_install.log"
+LOGFILE="/opt1/olap_poc/logs/doris_install.log"
 exec > >(tee -a "$LOGFILE") 2>&1
 
 echo "================================================"
@@ -15,7 +15,7 @@ echo "  Installing Apache Doris ${DORIS_VERSION}"
 echo "  $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 echo "================================================"
 
-COMPOSE_FILE="/opt1/poc/docker/doris-compose.yml"
+COMPOSE_FILE="/opt1/olap_poc/poc/docker/doris-compose.yml"
 
 # ---------------------------------------------------------------------------
 # 1. Stop any existing Doris containers
@@ -32,11 +32,11 @@ echo "--- Creating Doris data directories (purging stale BDBJE metadata) ---"
 # Wipe FE meta so BDBJE always starts a fresh single-node election group.
 # Without this, leftover journal files from a prior run cause FE to stay
 # in UNKNOWN state indefinitely (it can never reach quorum alone).
-rm -rf /opt1/doris/fe/meta
-mkdir -p /opt1/doris/fe/meta
-mkdir -p /opt1/doris/be/storage
-mkdir -p /opt1/doris/be/log
-mkdir -p /opt1/doris/fe/log
+rm -rf /opt1/olap_poc/doris/fe/meta
+mkdir -p /opt1/olap_poc/doris/fe/meta
+mkdir -p /opt1/olap_poc/doris/be/storage
+mkdir -p /opt1/olap_poc/doris/be/log
+mkdir -p /opt1/olap_poc/doris/fe/log
 echo "  Directories created."
 
 # ---------------------------------------------------------------------------

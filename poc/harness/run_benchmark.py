@@ -4,7 +4,7 @@ run_benchmark.py — Main benchmark harness for the OLAP POC.
 
 Drives all 14 read queries (cold + 5 warm) and all 4 write workloads
 for a given engine and mode. Records wall time, row count, peak RSS,
-and spill indicators. Writes JSONL to /opt1/poc/results/.
+and spill indicators. Writes JSONL to /opt1/olap_poc/poc/results/.
 
 Usage:
     python run_benchmark.py --engine doris      --mode local
@@ -31,12 +31,12 @@ from typing import Optional
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-ROOT       = Path(os.environ.get("POC_DIR",     "/opt1/poc"))
-DATA_DIR   = Path(os.environ.get("DATA_DIR",    "/opt1/data"))
-RESULTS    = Path(os.environ.get("RESULTS_DIR", "/opt1/poc/results"))
+ROOT       = Path(os.environ.get("POC_DIR",     "/opt1/olap_poc/poc"))
+DATA_DIR   = Path(os.environ.get("DATA_DIR",    "/opt1/olap_poc/data"))
+RESULTS    = Path(os.environ.get("RESULTS_DIR", "/opt1/olap_poc/poc/results"))
 QUERIES    = ROOT / "queries"
 WORKLOADS  = ROOT / "workloads"
-LOGS       = Path(os.environ.get("LOGS_DIR",    "/opt1/logs"))
+LOGS       = Path(os.environ.get("LOGS_DIR",    "/opt1/olap_poc/logs"))
 WARM_ITERS = int(os.environ.get("WARM_ITERATIONS", "5"))
 TIMEOUT_S  = int(os.environ.get("QUERY_TIMEOUT_SECONDS", "300"))
 
@@ -117,7 +117,7 @@ def preflight_check(engine: str, env: dict) -> None:
 
         elif engine == "duckdb":
             import duckdb
-            con = duckdb.connect(env.get("DUCKDB_DB_PATH", "/opt1/duckdb/benchmark.duckdb"))
+            con = duckdb.connect(env.get("DUCKDB_DB_PATH", "/opt1/olap_poc/duckdb/benchmark.duckdb"))
             rows = con.execute(
                 "SELECT 1 FROM information_schema.tables "
                 "WHERE table_schema='poc' AND table_name='event_fact'"
@@ -274,10 +274,10 @@ def run_doris(sql: str, env: dict, timeout: int) -> dict:
 
 def run_duckdb(sql: str, env: dict, timeout: int) -> dict:
     import duckdb
-    db_path = env.get("DUCKDB_DB_PATH", "/opt1/duckdb/benchmark.duckdb")
+    db_path = env.get("DUCKDB_DB_PATH", "/opt1/olap_poc/duckdb/benchmark.duckdb")
     con = duckdb.connect(db_path)
     con.execute("SET memory_limit = '6GB'")
-    con.execute("SET temp_directory = '/opt1/duckdb/spill'")
+    con.execute("SET temp_directory = '/opt1/olap_poc/duckdb/spill'")
     con.execute("SET threads = 4")
     con.execute("LOAD httpfs")
     con.execute("LOAD parquet")

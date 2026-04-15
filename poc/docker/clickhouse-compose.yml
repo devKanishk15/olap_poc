@@ -3,7 +3,7 @@ version: "3.9"
 # =============================================================================
 # ClickHouse — Single-Node Docker Compose
 # Version pinned via CLICKHOUSE_IMAGE env var
-# RAM budget: 6.5 GB  |  Spill to /opt1/clickhouse/tmp
+# RAM budget: 6.5 GB  |  Spill to /opt1/olap_poc/clickhouse/tmp
 # =============================================================================
 
 services:
@@ -22,18 +22,18 @@ services:
       - "9000:9000"   # Native TCP protocol
     volumes:
       # Persistent data
-      - /opt1/clickhouse/data:/var/lib/clickhouse
+      - /opt1/olap_poc/clickhouse/data:/var/lib/clickhouse
       # Logs
-      - /opt1/clickhouse/logs:/var/log/clickhouse-server
+      - /opt1/olap_poc/clickhouse/logs:/var/log/clickhouse-server
       # Spill / tmp
-      - /opt1/clickhouse/tmp:/var/lib/clickhouse/tmp
+      - /opt1/olap_poc/clickhouse/tmp:/var/lib/clickhouse/tmp
       # User files (for FILE() reads)
-      - /opt1/clickhouse/user_files:/var/lib/clickhouse/user_files
+      - /opt1/olap_poc/clickhouse/user_files:/var/lib/clickhouse/user_files
       # Local data directory (for benchmarking Parquet reads)
-      - /opt1/data:/opt1/data:ro
+      - /opt1/olap_poc/data:/opt1/olap_poc/data:ro
       # Custom config overrides
-      - /opt1/clickhouse/config.d/memory_limits.xml:/etc/clickhouse-server/config.d/memory_limits.xml:ro
-      - /opt1/clickhouse/config.d/storage_paths.xml:/etc/clickhouse-server/config.d/storage_paths.xml:ro
+      - /opt1/olap_poc/clickhouse/config.d/memory_limits.xml:/etc/clickhouse-server/config.d/memory_limits.xml:ro
+      - /opt1/olap_poc/clickhouse/config.d/storage_paths.xml:/etc/clickhouse-server/config.d/storage_paths.xml:ro
     mem_limit: 7168m    # 7 GB hard limit at Docker level
     cpus: "4.0"
     environment:

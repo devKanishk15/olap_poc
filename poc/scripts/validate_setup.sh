@@ -102,14 +102,14 @@ fi
 echo ""
 echo "--- Python Environment ---"
 
-VENV="/opt1/poc/.venv/bin/python"
+VENV="/opt1/olap_poc/poc/.venv/bin/python"
 if [[ -f "$VENV" ]]; then
     ok "venv: $($VENV --version)"
     for pkg in numpy pandas pyarrow duckdb requests; do
         $VENV -c "import $pkg" 2>/dev/null && ok "  $pkg" || warn "  $pkg not installed (run: pip install -r harness/requirements.txt)"
     done
 else
-    warn "venv not found at /opt1/poc/.venv (run: python3 -m venv /opt1/poc/.venv)"
+    warn "venv not found at /opt1/olap_poc/poc/.venv (run: python3 -m venv /opt1/olap_poc/poc/.venv)"
 fi
 
 # ---------------------------------------------------------------------------

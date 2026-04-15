@@ -7,7 +7,7 @@
 set -euo pipefail
 source /opt1/olap_poc/poc/.env 2>/dev/null || { echo "ERROR: /opt1/olap_poc/poc/.env not found."; exit 1; }
 
-LOGFILE="/opt1/logs/duckdb_install.log"
+LOGFILE="/opt1/olap_poc/logs/duckdb_install.log"
 exec > >(tee -a "$LOGFILE") 2>&1
 
 echo "================================================"
@@ -16,7 +16,7 @@ echo "  $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 echo "================================================"
 
 DUCKDB_BIN="/usr/local/bin/duckdb"
-DUCKDB_INSTALL_DIR="/opt1/duckdb"
+DUCKDB_INSTALL_DIR="/opt1/olap_poc/duckdb"
 
 # ---------------------------------------------------------------------------
 # 1. Download DuckDB CLI binary
@@ -38,7 +38,7 @@ duckdb --version
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- Installing DuckDB Python package ---"
-/opt1/poc/.venv/bin/pip install "duckdb==${DUCKDB_VERSION}" -q
+/opt1/olap_poc/poc/.venv/bin/pip install "duckdb==${DUCKDB_VERSION}" -q
 echo "  DuckDB Python package installed."
 
 # ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ cat > "${DUCKDB_INSTALL_DIR}/startup.sql" << SQL
 SET memory_limit = '6GB';
 
 -- Spill-to-disk directory on SSD
-SET temp_directory = '/opt1/duckdb/spill';
+SET temp_directory = '/opt1/olap_poc/duckdb/spill';
 
 -- Threads: match vCPU count
 SET threads = 4;
@@ -112,7 +112,7 @@ echo ""
 echo "  CLI binary : $DUCKDB_BIN"
 echo "  DB file    : ${DUCKDB_DB_PATH}"
 echo "  Memory cap : 6 GB"
-echo "  Spill dir  : /opt1/duckdb/spill"
+echo "  Spill dir  : /opt1/olap_poc/duckdb/spill"
 echo ""
 echo "  Teardown: bash scripts/99_teardown.sh --engine duckdb"
 echo "================================================"

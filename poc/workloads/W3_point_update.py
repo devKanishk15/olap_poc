@@ -23,8 +23,8 @@ import numpy as np
 from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT    = Path(os.environ.get("POC_DIR", "/opt1/poc"))
-RESULTS = Path(os.environ.get("RESULTS_DIR", "/opt1/poc/results"))
+ROOT    = Path(os.environ.get("POC_DIR", "/opt1/olap_poc/poc"))
+RESULTS = Path(os.environ.get("RESULTS_DIR", "/opt1/olap_poc/poc/results"))
 
 # event_ids that definitely exist (rows 1..10M)
 SAMPLE_IDS = random.sample(range(1, 10_000_001), 5000)
@@ -37,7 +37,7 @@ SAMPLE_IDS = random.sample(range(1, 10_000_001), 5000)
 def point_update_duckdb(env: dict, iterations: int) -> dict:
     """Standard SQL UPDATE by PK — DuckDB supports this natively."""
     import duckdb
-    db_path = env.get("DUCKDB_DB_PATH", "/opt1/duckdb/benchmark.duckdb")
+    db_path = env.get("DUCKDB_DB_PATH", "/opt1/olap_poc/duckdb/benchmark.duckdb")
     con     = duckdb.connect(db_path)
 
     latencies = []

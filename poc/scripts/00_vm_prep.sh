@@ -48,27 +48,27 @@ echo ""
 echo "--- Creating Directory Structure ---"
 
 for DIR in \
-  /opt1/poc/scripts \
-  /opt1/poc/docker \
-  /opt1/poc/schema \
-  /opt1/poc/data \
-  /opt1/poc/queries \
-  /opt1/poc/workloads \
-  /opt1/poc/harness \
-  /opt1/poc/results \
-  /opt1/poc/report/03_charts \
-  /opt1/doris \
-  /opt1/duckdb \
-  /opt1/clickhouse \
-  /opt1/data \
-  /opt1/logs \
-  /opt1/secrets; do
+  /opt1/olap_poc/poc/scripts \
+  /opt1/olap_poc/poc/docker \
+  /opt1/olap_poc/poc/schema \
+  /opt1/olap_poc/poc/data \
+  /opt1/olap_poc/poc/queries \
+  /opt1/olap_poc/poc/workloads \
+  /opt1/olap_poc/poc/harness \
+  /opt1/olap_poc/poc/results \
+  /opt1/olap_poc/poc/report/03_charts \
+  /opt1/olap_poc/doris \
+  /opt1/olap_poc/duckdb \
+  /opt1/olap_poc/clickhouse \
+  /opt1/olap_poc/data \
+  /opt1/olap_poc/logs \
+  /opt1/olap_poc/secrets; do
   mkdir -p "$DIR"
   echo "  Created: $DIR"
 done
 
-chmod 700 /opt1/secrets
-echo "  Secured: /opt1/secrets (700)"
+chmod 700 /opt1/olap_poc/secrets
+echo "  Secured: /opt1/olap_poc/secrets (700)"
 
 # ---------------------------------------------------------------------------
 # 3. System package prerequisites
@@ -181,12 +181,12 @@ echo "  NOTE: Limits take effect on next login. Docker containers override via c
 echo ""
 echo "--- Setting Up Python Environment ---"
 
-python3 -m venv /opt1/poc/.venv
-/opt1/poc/.venv/bin/pip install --upgrade pip -q
+python3 -m venv /opt1/olap_poc/poc/.venv
+/opt1/olap_poc/poc/.venv/bin/pip install --upgrade pip -q
 
 # Install harness dependencies from requirements.txt if present
 if [[ -f /opt1/olap_poc/poc/harness/requirements.txt ]]; then
-  /opt1/poc/.venv/bin/pip install -r /opt1/olap_poc/poc/harness/requirements.txt -q
+  /opt1/olap_poc/poc/.venv/bin/pip install -r /opt1/olap_poc/poc/harness/requirements.txt -q
   echo "  Harness dependencies installed."
 else
   echo "  harness/requirements.txt not found yet — run again after cloning the repo to /opt1/olap_poc."
@@ -221,5 +221,5 @@ echo "  Docker: $(docker --version)"
 echo "  Python: $(python3 --version)"
 echo "=========================================="
 echo ""
-echo "Next step: copy poc/ files to /opt1/poc/, then run:"
+echo "Next step: copy poc/ files to /opt1/olap_poc/poc/, then run:"
 echo "  bash scripts/01_install_doris.sh"

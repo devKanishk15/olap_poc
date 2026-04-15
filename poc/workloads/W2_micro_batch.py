@@ -20,8 +20,8 @@ import numpy as np
 from datetime import datetime, timezone, date, timedelta
 from pathlib import Path
 
-ROOT     = Path(os.environ.get("POC_DIR", "/opt1/poc"))
-RESULTS  = Path(os.environ.get("RESULTS_DIR", "/opt1/poc/results"))
+ROOT     = Path(os.environ.get("POC_DIR", "/opt1/olap_poc/poc"))
+RESULTS  = Path(os.environ.get("RESULTS_DIR", "/opt1/olap_poc/poc/results"))
 SEED     = 99   # different seed from generator to simulate new data
 
 
@@ -127,7 +127,7 @@ def insert_doris(rows: list[dict], env: dict) -> float:
 
 def insert_duckdb(rows: list[dict], env: dict) -> float:
     import duckdb
-    db_path = env.get("DUCKDB_DB_PATH", "/opt1/duckdb/benchmark.duckdb")
+    db_path = env.get("DUCKDB_DB_PATH", "/opt1/olap_poc/duckdb/benchmark.duckdb")
     con     = duckdb.connect(db_path)
 
     import pandas as pd

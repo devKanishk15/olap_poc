@@ -32,11 +32,11 @@ fi
 
 teardown_doris() {
   echo "--- Tearing down Apache Doris ---"
-  docker compose -f /opt1/poc/docker/doris-compose.yml \
+  docker compose -f /opt1/olap_poc/poc/docker/doris-compose.yml \
     down --remove-orphans --volumes 2>/dev/null || true
   if [[ "$WIPE" == "true" ]]; then
-    rm -rf /opt1/doris/*
-    echo "  /opt1/doris wiped."
+    rm -rf /opt1/olap_poc/doris/*
+    echo "  /opt1/olap_poc/doris wiped."
   fi
   echo "  Doris stopped."
 }
@@ -46,8 +46,8 @@ teardown_duckdb() {
   # DuckDB is in-process — kill any stray duckdb processes
   pkill -f "duckdb" 2>/dev/null || true
   if [[ "$WIPE" == "true" ]]; then
-    rm -rf /opt1/duckdb/spill/*
-    rm -f /opt1/duckdb/benchmark.duckdb /opt1/duckdb/benchmark.duckdb.wal
+    rm -rf /opt1/olap_poc/duckdb/spill/*
+    rm -f /opt1/olap_poc/duckdb/benchmark.duckdb /opt1/olap_poc/duckdb/benchmark.duckdb.wal
     echo "  DuckDB DB and spill wiped."
   fi
   echo "  DuckDB stopped."
@@ -55,13 +55,13 @@ teardown_duckdb() {
 
 teardown_clickhouse() {
   echo "--- Tearing down ClickHouse ---"
-  docker compose -f /opt1/poc/docker/clickhouse-compose.yml \
+  docker compose -f /opt1/olap_poc/poc/docker/clickhouse-compose.yml \
     down --remove-orphans --volumes 2>/dev/null || true
   if [[ "$WIPE" == "true" ]]; then
-    rm -rf /opt1/clickhouse/data/*
-    rm -rf /opt1/clickhouse/logs/*
-    rm -rf /opt1/clickhouse/tmp/*
-    echo "  /opt1/clickhouse data/logs/tmp wiped."
+    rm -rf /opt1/olap_poc/clickhouse/data/*
+    rm -rf /opt1/olap_poc/clickhouse/logs/*
+    rm -rf /opt1/olap_poc/clickhouse/tmp/*
+    echo "  /opt1/olap_poc/clickhouse data/logs/tmp wiped."
   fi
   echo "  ClickHouse stopped."
 }

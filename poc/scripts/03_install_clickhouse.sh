@@ -6,7 +6,7 @@
 set -euo pipefail
 source /opt1/olap_poc/poc/.env 2>/dev/null || { echo "ERROR: /opt1/olap_poc/poc/.env not found."; exit 1; }
 
-LOGFILE="/opt1/logs/clickhouse_install.log"
+LOGFILE="/opt1/olap_poc/logs/clickhouse_install.log"
 exec > >(tee -a "$LOGFILE") 2>&1
 
 echo "================================================"
@@ -14,7 +14,7 @@ echo "  Installing ClickHouse ${CLICKHOUSE_VERSION}"
 echo "  $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 echo "================================================"
 
-COMPOSE_FILE="/opt1/poc/docker/clickhouse-compose.yml"
+COMPOSE_FILE="/opt1/olap_poc/poc/docker/clickhouse-compose.yml"
 
 # ---------------------------------------------------------------------------
 # 1. Stop any existing ClickHouse containers
@@ -28,10 +28,10 @@ docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || true
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- Creating ClickHouse directories ---"
-mkdir -p /opt1/clickhouse/data
-mkdir -p /opt1/clickhouse/logs
-mkdir -p /opt1/clickhouse/tmp
-mkdir -p /opt1/clickhouse/user_files
+mkdir -p /opt1/olap_poc/clickhouse/data
+mkdir -p /opt1/olap_poc/clickhouse/logs
+mkdir -p /opt1/olap_poc/clickhouse/tmp
+mkdir -p /opt1/olap_poc/clickhouse/user_files
 echo "  Directories created."
 
 # ---------------------------------------------------------------------------
@@ -39,9 +39,9 @@ echo "  Directories created."
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- Writing ClickHouse memory config ---"
-mkdir -p /opt1/clickhouse/config.d
+mkdir -p /opt1/olap_poc/clickhouse/config.d
 
-cat > /opt1/clickhouse/config.d/memory_limits.xml << 'XML'
+cat > /opt1/olap_poc/clickhouse/config.d/memory_limits.xml << 'XML'
 <clickhouse>
     <!-- Hard cap: 6.5 GB — leaves ~1.5 GB for OS + Docker overhead -->
     <max_server_memory_usage>6979318784</max_server_memory_usage>
@@ -50,7 +50,7 @@ cat > /opt1/clickhouse/config.d/memory_limits.xml << 'XML'
     <max_server_memory_usage_to_ram_ratio>0.9</max_server_memory_usage_to_ram_ratio>
 
     <!-- Spill directory on SSD -->
-    <tmp_path>/opt1/clickhouse/tmp/</tmp_path>
+    <tmp_path>/opt1/olap_poc/clickhouse/tmp/</tmp_path>
 
     <!-- Log slow queries for analysis -->
     <query_log>
@@ -71,11 +71,11 @@ cat > /opt1/clickhouse/config.d/memory_limits.xml << 'XML'
 </clickhouse>
 XML
 
-cat > /opt1/clickhouse/config.d/storage_paths.xml << 'XML'
+cat > /opt1/olap_poc/clickhouse/config.d/storage_paths.xml << 'XML'
 <clickhouse>
-    <path>/opt1/clickhouse/data/</path>
-    <tmp_path>/opt1/clickhouse/tmp/</tmp_path>
-    <user_files_path>/opt1/clickhouse/user_files/</user_files_path>
+    <path>/opt1/olap_poc/clickhouse/data/</path>
+    <tmp_path>/opt1/olap_poc/clickhouse/tmp/</tmp_path>
+    <user_files_path>/opt1/olap_poc/clickhouse/user_files/</user_files_path>
 </clickhouse>
 XML
 
@@ -147,7 +147,7 @@ echo "  HTTP     : http://${CLICKHOUSE_HOST}:${CLICKHOUSE_HTTP_PORT}"
 echo "  Native   : ${CLICKHOUSE_HOST}:${CLICKHOUSE_NATIVE_PORT}"
 echo "  Database : ${CLICKHOUSE_DATABASE}"
 echo "  Mem limit: 6.5 GB"
-echo "  Tmp dir  : /opt1/clickhouse/tmp"
+echo "  Tmp dir  : /opt1/olap_poc/clickhouse/tmp"
 echo ""
 echo "  Teardown: bash scripts/99_teardown.sh --engine clickhouse"
 echo "================================================"
