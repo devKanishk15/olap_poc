@@ -121,22 +121,24 @@ def insert_doris(rows: list[dict], env: dict) -> float:
     user   = env.get("DORIS_USER", "root")
     passwd = env.get("DORIS_PASSWORD", "")
 
-    # Serialize as a JSON array. Python's json module maps:
-    #   None  → null   (Doris: SQL NULL)
-    #   bool  → true/false
-    #   str   → JSON string (custom_dimensions JSON stays correctly escaped)
-    json_bytes = _json.dumps(rows, default=str).encode()
+    # Serialize as NDJSON (newline-delimited JSON): one JSON object per line.
+    # This is Doris's default JSON stream-load mode — no extra headers required.
+    # strip_outer_array=true (JSON array mode) was tried but Doris 2.1.x treats
+    # the whole array as NumberTotalRows=1 and rejects it as a data quality error.
+    # Python's json module maps: None→null, bool→true/false, str stays as string.
+    ndjson_bytes = "\n".join(
+        _json.dumps(row, default=str) for row in rows
+    ).encode()
 
     _token = base64.b64encode(f"{user}:{passwd}".encode()).decode()
     # Label must be unique per load job; nanoseconds avoid collision within the same second.
     label = f"micro_batch_{int(time.time_ns())}"
     headers = {
-        "label":              label,
-        "format":             "json",
-        "strip_outer_array":  "true",   # input is a JSON array, not a single object
-        "max_filter_ratio":   "0.01",
-        "Expect":             "100-continue",
-        "Authorization":      f"Basic {_token}",
+        "label":            label,
+        "format":           "json",
+        "max_filter_ratio": "0.01",
+        "Expect":           "100-continue",
+        "Authorization":    f"Basic {_token}",
     }
 
     url = f"http://{host}:{http}/api/poc/event_fact/_stream_load"
@@ -144,11 +146,11 @@ def insert_doris(rows: list[dict], env: dict) -> float:
     t0 = time.perf_counter()
     # Doris FE issues a 307 redirect to a BE node. Follow manually to preserve
     # the Authorization header (requests strips it on cross-origin redirects).
-    resp = requests.put(url, data=json_bytes, headers=headers,
+    resp = requests.put(url, data=ndjson_bytes, headers=headers,
                         timeout=120, allow_redirects=False)
     if resp.status_code in (301, 302, 307, 308):
         be_url = resp.headers.get("Location", url)
-        resp = requests.put(be_url, data=json_bytes, headers=headers, timeout=120)
+        resp = requests.put(be_url, data=ndjson_bytes, headers=headers, timeout=120)
     elapsed = time.perf_counter() - t0
 
     result = resp.json()
