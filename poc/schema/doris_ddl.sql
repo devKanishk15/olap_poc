@@ -120,8 +120,7 @@ DISTRIBUTED BY HASH(user_id) BUCKETS 8
 PROPERTIES (
     "replication_num"  = "1",             -- single-node: no replication
     "storage_format"   = "V2",            -- Segment V2 (columnar)
-    "compression"      = "LZ4",           -- LZ4: good balance of speed/ratio
-    "enable_unique_key_merge_on_write" = "false"
+    "compression"      = "LZ4"            -- LZ4: good balance of speed/ratio
 );
 
 -- -----------------------------------------------------------------------------
