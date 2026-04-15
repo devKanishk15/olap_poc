@@ -49,8 +49,8 @@ cat > /opt1/olap_poc/clickhouse/config.d/memory_limits.xml << 'XML'
     <!-- Allow up to 90% of server memory per query before spilling -->
     <max_server_memory_usage_to_ram_ratio>0.9</max_server_memory_usage_to_ram_ratio>
 
-    <!-- Spill directory on SSD -->
-    <tmp_path>/opt1/olap_poc/clickhouse/tmp/</tmp_path>
+    <!-- Spill directory on SSD (container-internal path) -->
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
 
     <!-- Log slow queries for analysis -->
     <query_log>
@@ -73,9 +73,10 @@ XML
 
 cat > /opt1/olap_poc/clickhouse/config.d/storage_paths.xml << 'XML'
 <clickhouse>
-    <path>/opt1/olap_poc/clickhouse/data/</path>
-    <tmp_path>/opt1/olap_poc/clickhouse/tmp/</tmp_path>
-    <user_files_path>/opt1/olap_poc/clickhouse/user_files/</user_files_path>
+    <!-- Container-internal paths — host dirs are bind-mounted here by docker compose -->
+    <path>/var/lib/clickhouse/</path>
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+    <user_files_path>/var/lib/clickhouse/user_files/</user_files_path>
 </clickhouse>
 XML
 
