@@ -529,17 +529,23 @@ def main():
                 env={**os.environ, **env},
             )
             elapsed = time.perf_counter() - t0
-            # Parse last JSON line from stdout (workloads always print their result there)
-            lines = [l for l in proc.stdout.strip().splitlines() if l.startswith("{")]
+            # Parse the JSON result from stdout. Workloads may print with indent=2
+            # (multi-line), so join from the first '{'-starting line to end of output.
+            stdout_lines = proc.stdout.strip().splitlines()
+            json_text = None
+            for i, ln in enumerate(stdout_lines):
+                if ln.startswith("{"):
+                    json_text = "\n".join(stdout_lines[i:])
+                    break
             if proc.returncode == 0:
-                if lines:
-                    w_result = json.loads(lines[-1])
+                if json_text:
+                    w_result = json.loads(json_text)
                 else:
                     w_result = {"status": "OK", "stdout": proc.stdout[-300:]}
             else:
-                if lines:
+                if json_text:
                     # Workload printed its error record to stdout before exiting non-zero
-                    w_result = json.loads(lines[-1])
+                    w_result = json.loads(json_text)
                     w_result.setdefault("status", "ERROR")
                 else:
                     w_result = {
