@@ -50,9 +50,13 @@ def bulk_load_doris(env: dict) -> dict:
     files_loaded = 0
     t_start = time.perf_counter()
 
-    # Encode credentials directly in the header so the Authorization header
-    # is preserved when requests follows the FE→BE redirect (requests strips
-    # the auth= kwarg on cross-host/port redirects by default).
+    # Doris FE issues a 307 redirect to a BE node for every stream-load request.
+    # requests.rebuild_auth() deletes 'Authorization' from the prepared-request
+    # headers dict on cross-origin (different port) redirects — this applies to
+    # BOTH the auth= kwarg and any 'Authorization' key in the headers dict.
+    # Fix: disable auto-redirect (allow_redirects=False), read the file into
+    # memory so it can be replayed, then manually follow the 3xx response with
+    # the original headers intact. The manual PUT to BE bypasses rebuild_auth.
     _token = base64.b64encode(f"{user}:{passwd}".encode()).decode()
 
     for pf in parquet_files:
@@ -60,18 +64,19 @@ def bulk_load_doris(env: dict) -> dict:
         headers = {
             "label":            label,
             "format":           "parquet",
-            "where":            "",
             "max_filter_ratio": "0.01",
-            "Expect":           "100-continue",
             "Authorization":    f"Basic {_token}",
         }
-        with open(pf, "rb") as f:
-            resp = requests.put(
-                url,
-                data=f,
-                headers=headers,
-                timeout=300,
-            )
+        with open(pf, "rb") as fh:
+            file_bytes = fh.read()
+
+        # First leg: FE (may respond with 307 redirect to BE)
+        resp = requests.put(url, data=file_bytes, headers=headers,
+                            timeout=300, allow_redirects=False)
+        # Follow any redirect manually so the Authorization header is preserved
+        if resp.status_code in (301, 302, 307, 308):
+            be_url = resp.headers.get("Location", url)
+            resp = requests.put(be_url, data=file_bytes, headers=headers, timeout=300)
         result = resp.json()
         if result.get("Status") not in ("Success", "Publish Timeout"):
             return {"status": "ERROR", "error": str(result), "files_loaded": files_loaded}
