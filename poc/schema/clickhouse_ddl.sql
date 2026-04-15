@@ -137,6 +137,6 @@ SETTINGS index_granularity = 8192;
 --     'Parquet'
 -- );
 
--- Verify
-SELECT count() FROM poc.event_fact;
-SHOW CREATE TABLE poc.event_fact;
+-- Verify (run manually or via make schema-clickhouse which issues these separately):
+-- SELECT count() FROM poc.event_fact;
+-- SHOW CREATE TABLE poc.event_fact;
