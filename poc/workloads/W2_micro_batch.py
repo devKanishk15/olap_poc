@@ -115,8 +115,13 @@ def insert_doris(rows: list[dict], env: dict) -> float:
     sql  = f"INSERT INTO event_fact ({','.join(cols)}) VALUES ({placeholders})"
     vals = [tuple(r[c] for c in cols) for r in rows]
 
+    # Chunk into 500-row sub-batches to stay under Doris's max_allowed_packet.
+    # A single executemany() with 10k rows × ~50 columns produces a packet that
+    # exceeds the default limit and causes Doris to drop the connection.
+    _CHUNK = 500
     t0 = time.perf_counter()
-    cur.executemany(sql, vals)
+    for _start in range(0, len(vals), _CHUNK):
+        cur.executemany(sql, vals[_start:_start + _CHUNK])
     conn.commit()
     elapsed = time.perf_counter() - t0
 
