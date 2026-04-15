@@ -412,6 +412,7 @@ def run_query(query_id: str, engine: str, mode: str, env: dict) -> Optional[dict
     rows_ret = None
     spill    = False
     oom      = False
+    last_err = None
 
     print(f"\n  [{query_id}]", end="", flush=True)
 
@@ -445,14 +446,17 @@ def run_query(query_id: str, engine: str, mode: str, env: dict) -> Optional[dict
 
         except MemoryError:
             oom = True
+            last_err = "MemoryError"
             print("[OOM]", end="", flush=True)
             break
         except Exception as exc:
             err_msg = str(exc)
             if "memory" in err_msg.lower() or "oom" in err_msg.lower():
                 oom = True
+                last_err = err_msg
                 print(f"[OOM:{err_msg[:60]}]", end="", flush=True)
                 break
+            last_err = err_msg
             print(f"[ERR:{err_msg[:60]}]", end="", flush=True)
             break
 
@@ -462,6 +466,7 @@ def run_query(query_id: str, engine: str, mode: str, env: dict) -> Optional[dict
             "engine":      engine,
             "mode":        mode,
             "status":      "OOM",
+            "error":       last_err,
         }
 
     if not timings:
@@ -471,6 +476,7 @@ def run_query(query_id: str, engine: str, mode: str, env: dict) -> Optional[dict
             "mode":        mode,
             "status":      "ERROR",
             "cold_s":      cold_time if "cold_time" in dir() else None,
+            "error":       last_err,
         }
 
     timings.sort()
@@ -539,13 +545,27 @@ def main():
             to_run = [q for q in to_run if "gcs_remote_read" not in q.lower()]
         # Only run Q14 in gcs mode alongside others
         print(f"\nRunning {len(to_run)} read queries...")
+        prev_oom = False
         for qid in to_run:
+            # After a Doris OOM the BE process may be restarting; wait before
+            # the next query so we don't misclassify a transient connection
+            # error as a query-level failure.
+            if prev_oom and args.engine == "doris":
+                print(f"\n  [health] Doris BE recovery wait after OOM...", end="", flush=True)
+                if wait_for_doris(env):
+                    print(" OK")
+                else:
+                    print(" UNAVAILABLE — remaining read queries may fail")
+                prev_oom = False
+
             result = run_query(qid, args.engine, args.mode, env)
             if result:
                 result["timestamp"] = datetime.now(timezone.utc).isoformat()
                 all_results.append(result)
                 with open(out_file, "a") as f:
                     f.write(json.dumps(result) + "\n")
+                if result.get("status") == "OOM":
+                    prev_oom = True
 
     # ---- Write workloads ----
     if not args.skip_writes:
