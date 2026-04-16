@@ -182,6 +182,7 @@ def _duckdb_new_connection(env: dict):
     con.execute("SET memory_limit = '6GB'")
     con.execute(f"SET temp_directory = '{DUCKDB_SPILL_DIR}'")
     con.execute("SET threads = 4")
+    con.execute("INSTALL httpfs")
     con.execute("LOAD httpfs")
 
     # GCS credentials via S3-compatible API
