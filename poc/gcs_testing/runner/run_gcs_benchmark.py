@@ -522,10 +522,10 @@ Examples:
                         help=f"Per-query timeout in seconds (default: {TIMEOUT_S})")
     parser.add_argument("--warm-iters", type=int, default=WARM_ITERS,
                         help=f"Number of warm iterations (default: {WARM_ITERS})")
+    global WARM_ITERS, TIMEOUT_S
     args = parser.parse_args()
 
     # Override globals from CLI args
-    global WARM_ITERS, TIMEOUT_S
     WARM_ITERS = args.warm_iters
     TIMEOUT_S  = args.timeout
 
