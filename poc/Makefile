@@ -108,8 +108,21 @@ schema-duckdb:
 	    < schema/duckdb_ddl.sql
 
 schema-clickhouse:
-	curl -s "http://127.0.0.1:8123/" \
-	    --data-binary @schema/clickhouse_ddl.sql
+	# ClickHouse HTTP API rejects multi-statement payloads; use clickhouse-client --multiquery
+	@CH_USER=$$(grep -E '^CLICKHOUSE_USER=' $(ENV_FILE) | cut -d= -f2 || echo default); \
+	CH_PASS=$$(grep -E '^CLICKHOUSE_PASSWORD=' $(ENV_FILE) | cut -d= -f2 || echo ''); \
+	docker exec -i clickhouse clickhouse-client \
+	    --user "$$CH_USER" \
+	    $${CH_PASS:+--password="$$CH_PASS"} \
+	    --multiquery \
+	    < schema/clickhouse_ddl.sql
+	@echo "  Verifying row count..."
+	@CH_USER=$$(grep -E '^CLICKHOUSE_USER=' $(ENV_FILE) | cut -d= -f2 || echo default); \
+	CH_PASS=$$(grep -E '^CLICKHOUSE_PASSWORD=' $(ENV_FILE) | cut -d= -f2 || echo ''); \
+	docker exec clickhouse clickhouse-client \
+	    --user "$$CH_USER" \
+	    $${CH_PASS:+--password="$$CH_PASS"} \
+	    --query "SELECT count() FROM poc.event_fact"
 
 # ---------------------------------------------------------------------------
 # Benchmarks
