@@ -14,6 +14,7 @@ SELECT
 FROM read_csv_auto(
     's3://<GCS_PC_ITEM_IMAGE_PREFIX>',
     header = true,
+    null_padding = true,
     columns = {
         'pc_item_image_id': 'BIGINT',
         'fk_pc_item_id': 'BIGINT',
