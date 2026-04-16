@@ -190,6 +190,7 @@ def _duckdb_new_connection(env: dict):
     con.execute(f"SET s3_access_key_id     = '{env.get('GCS_HMAC_ACCESS_KEY', '')}'")
     con.execute(f"SET s3_secret_access_key = '{env.get('GCS_HMAC_SECRET', '')}'")
     con.execute(f"SET s3_region            = '{env.get('GCS_REGION', 'auto')}'")
+    con.execute("SET s3_url_style = 'path'")
     return con
 
 

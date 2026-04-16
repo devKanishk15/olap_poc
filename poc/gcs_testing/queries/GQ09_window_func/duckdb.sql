@@ -12,7 +12,7 @@ WITH seller_status_agg AS (
         COUNT(DISTINCT fk_pc_item_id)  AS item_count,
         MAX(pc_item_image_update_date) AS last_update
     FROM read_csv_auto(
-        's3://<GCS_BUCKET>/<GCS_PC_ITEM_IMAGE_PREFIX>',
+        's3://<GCS_PC_ITEM_IMAGE_PREFIX>',
         header = true,
         columns = {
             'pc_item_image_id': 'BIGINT',

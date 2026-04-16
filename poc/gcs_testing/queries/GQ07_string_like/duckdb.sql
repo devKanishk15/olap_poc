@@ -9,7 +9,7 @@ SELECT
     COUNT(*)                               AS matched_images,
     COUNT(DISTINCT pc_item_image_glusr_id) AS sellers_with_match
 FROM read_csv_auto(
-    's3://<GCS_BUCKET>/<GCS_PC_ITEM_IMAGE_PREFIX>',
+    's3://<GCS_PC_ITEM_IMAGE_PREFIX>',
     header = true,
     columns = {
         'pc_item_image_id': 'BIGINT',

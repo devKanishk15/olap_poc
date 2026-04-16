@@ -11,7 +11,7 @@ SELECT
     SUM(CASE WHEN pc_item_img_status = 'I' THEN 1 ELSE 0 END)  AS inactive_count,
     MAX(pc_item_image_update_date)                              AS last_activity
 FROM read_csv_auto(
-    's3://<GCS_BUCKET>/<GCS_PC_ITEM_IMAGE_PREFIX>',
+    's3://<GCS_PC_ITEM_IMAGE_PREFIX>',
     header = true,
     columns = {
         'pc_item_image_id': 'BIGINT',

@@ -17,7 +17,7 @@ WITH per_seller_status AS (
         SUM(CASE WHEN pc_item_image_500x500    LIKE '%http%' THEN 1 ELSE 0 END)  AS thumb_500_http_count,
         MAX(pc_item_image_update_date)                                      AS last_update
     FROM read_csv_auto(
-        's3://<GCS_BUCKET>/<GCS_PC_ITEM_IMAGE_PREFIX>',
+        's3://<GCS_PC_ITEM_IMAGE_PREFIX>',
         header = true,
         columns = {
             'pc_item_image_id': 'BIGINT',

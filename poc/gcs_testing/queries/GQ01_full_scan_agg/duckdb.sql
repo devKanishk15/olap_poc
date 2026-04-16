@@ -12,7 +12,7 @@ SELECT
     MAX(pc_item_image_update_date)                              AS latest_update,
     SUM(CASE WHEN pc_item_img_status = 'A' THEN 1 ELSE 0 END)  AS active_count
 FROM read_csv_auto(
-    's3://<GCS_BUCKET>/<GCS_PC_ITEM_IMAGE_PREFIX>',
+    's3://<GCS_PC_ITEM_IMAGE_PREFIX>',
     header = true,
     columns = {
         'pc_item_image_id': 'BIGINT',

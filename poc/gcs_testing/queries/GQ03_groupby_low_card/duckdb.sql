@@ -11,7 +11,7 @@ SELECT
     MIN(pc_item_image_update_date)         AS earliest_update,
     MAX(pc_item_image_update_date)         AS latest_update
 FROM read_csv_auto(
-    's3://<GCS_BUCKET>/<GCS_PC_ITEM_IMAGE_PREFIX>',
+    's3://<GCS_PC_ITEM_IMAGE_PREFIX>',
     header = true,
     columns = {
         'pc_item_image_id': 'BIGINT',
