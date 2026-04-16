@@ -46,10 +46,7 @@ FROM read_csv_auto(
         'pc_item_image_1000x1000': 'VARCHAR',
         'pc_item_image_1000x1000_width': 'INTEGER',
         'pc_item_image_1000x1000_height': 'INTEGER',
-        'pc_item_image_glusr_id': 'BIGINT',
-        'pc_item_image_2000x2000': 'VARCHAR',
-        'pc_item_image_2000x2000_width': 'INTEGER',
-        'pc_item_image_2000x2000_height': 'INTEGER'
+        'pc_item_image_glusr_id': 'BIGINT'
     }
 )
 WHERE pc_item_image_glusr_id IS NOT NULL

@@ -52,10 +52,7 @@ WITH per_seller_status AS (
             'pc_item_image_1000x1000': 'VARCHAR',
             'pc_item_image_1000x1000_width': 'INTEGER',
             'pc_item_image_1000x1000_height': 'INTEGER',
-            'pc_item_image_glusr_id': 'BIGINT',
-            'pc_item_image_2000x2000': 'VARCHAR',
-            'pc_item_image_2000x2000_width': 'INTEGER',
-            'pc_item_image_2000x2000_height': 'INTEGER'
+            'pc_item_image_glusr_id': 'BIGINT'
         }
     )
     GROUP BY pc_item_image_glusr_id, pc_item_img_status, pc_item_image_ip_country
