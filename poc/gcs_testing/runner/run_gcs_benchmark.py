@@ -501,6 +501,7 @@ def print_summary(results: list[dict]) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    global WARM_ITERS, TIMEOUT_S
     parser = argparse.ArgumentParser(
         description="GCS read-only benchmark runner for pc_item_image CSV",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -522,7 +523,6 @@ Examples:
                         help=f"Per-query timeout in seconds (default: {TIMEOUT_S})")
     parser.add_argument("--warm-iters", type=int, default=WARM_ITERS,
                         help=f"Number of warm iterations (default: {WARM_ITERS})")
-    global WARM_ITERS, TIMEOUT_S
     args = parser.parse_args()
 
     # Override globals from CLI args
