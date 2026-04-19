@@ -1,7 +1,7 @@
--- GQ07 — String LIKE scan on keyword and comment columns
--- Stresses string scanning on wide columns: pl_kwrd_term_upper (varchar 500),
--- glusr_premium_hist_comments (varchar 1000), glusr_premium_updatedby_url (varchar 255).
--- High I/O cost per row due to column widths.
+-- GQ07 — String LIKE scan on keyword column
+-- Stresses string scanning on wide column: pl_kwrd_term_upper (varchar 500).
+-- glusr_premium_hist_comments and glusr_premium_updatedby_url absent from this CSV export.
+-- High I/O cost per row due to column width.
 -- Dialect: DuckDB (read_csv_auto via httpfs)
 -- NOTE: Runner injects LOAD httpfs + SET s3_* credentials before executing this file.
 
@@ -15,8 +15,6 @@ FROM read_csv_auto(
     null_padding = true
 )
 WHERE
-    pl_kwrd_term_upper              LIKE '%PREMIUM%'
-    OR glusr_premium_hist_comments  LIKE '%approved%'
-    OR glusr_premium_updatedby_url  LIKE '%http%'
+    pl_kwrd_term_upper LIKE '%PREMIUM%'
 GROUP BY category_type
 ORDER BY matched_listings DESC
