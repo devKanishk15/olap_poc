@@ -1,53 +1,43 @@
 -- GQ08 — Approximate vs exact distinct count comparison
--- Compares APPROX_COUNT_DISTINCT (HyperLogLog) vs COUNT(DISTINCT) per status bucket.
+-- Compares APPROX_COUNT_DISTINCT (HyperLogLog) vs COUNT(DISTINCT) per category bucket.
 -- Highlights engines that have native HLL support vs those that materialise the full set.
 -- Dialect: DuckDB (read_csv_auto via httpfs)
 -- NOTE: Runner injects LOAD httpfs + SET s3_* credentials before executing this file.
 
 SELECT
-    pc_item_img_status,
-    COUNT(*)                                    AS total_images,
-    APPROX_COUNT_DISTINCT(pc_item_image_glusr_id) AS approx_distinct_sellers,
-    COUNT(DISTINCT pc_item_image_glusr_id)      AS exact_distinct_sellers,
-    APPROX_COUNT_DISTINCT(fk_pc_item_id)        AS approx_distinct_items
+    category_type,
+    COUNT(*)                                         AS total_listings,
+    APPROX_COUNT_DISTINCT(fk_glusr_usr_id)           AS approx_distinct_users,
+    COUNT(DISTINCT fk_glusr_usr_id)                  AS exact_distinct_users,
+    APPROX_COUNT_DISTINCT(glusr_premium_mcat_id)     AS approx_distinct_mcats
 FROM read_csv_auto(
-    's3://<GCS_PC_ITEM_IMAGE_PREFIX>',
+    's3://<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
     header = true,
     null_padding = true,
     columns = {
-        'pc_item_image_id': 'BIGINT',
-        'fk_pc_item_id': 'BIGINT',
-        'pc_item_image_updatedby': 'VARCHAR',
-        'pc_item_image_update_date': 'TIMESTAMP',
-        'pc_item_image_original': 'VARCHAR',
-        'pc_item_img_status': 'VARCHAR',
-        'fk_pc_item_doc_id': 'BIGINT',
-        'pc_item_img_doc_order': 'BIGINT',
-        'pc_item_image_original_flag': 'BIGINT',
-        'pc_item_image_125x125_flag': 'BIGINT',
-        'pc_item_image_250x250_flag': 'BIGINT',
-        'pc_item_image_500x500_flag': 'BIGINT',
-        'pc_item_image_1000x1000_flag': 'BIGINT',
-        'pc_item_image_glusr_id': 'BIGINT',
-        'pc_item_image_original_width': 'INTEGER',
-        'pc_item_image_original_height': 'INTEGER',
-        'pc_item_image_125x125_width': 'INTEGER',
-        'pc_item_image_125x125_height': 'INTEGER',
-        'pc_item_image_250x250_width': 'INTEGER',
-        'pc_item_image_250x250_height': 'INTEGER',
-        'pc_item_image_500x500_width': 'INTEGER',
-        'pc_item_image_500x500_height': 'INTEGER',
-        'pc_item_image_125x125': 'VARCHAR',
-        'pc_item_image_250x250': 'VARCHAR',
-        'pc_item_image_500x500': 'VARCHAR',
-        'fk_pc_item_img_rejection_code': 'INTEGER',
-        'pc_item_image_1000x1000': 'VARCHAR',
-        'pc_item_image_1000x1000_width': 'INTEGER',
-        'pc_item_image_1000x1000_height': 'INTEGER',
-        'pc_item_image_2000x2000': 'VARCHAR',
-        'pc_item_image_2000x2000_width': 'INTEGER',
-        'pc_item_image_2000x2000_height': 'INTEGER'
+        'glusr_premium_listing_id': 'BIGINT',
+        'fk_glusr_usr_id': 'BIGINT',
+        'glusr_premium_mcat_id': 'BIGINT',
+        'glusr_premium_city_id': 'BIGINT',
+        'flag_premium_listing': 'VARCHAR',
+        'fk_service_id': 'BIGINT',
+        'fk_cust_to_serv_id': 'BIGINT',
+        'pl_kwrd_term_upper': 'VARCHAR',
+        'glusr_premium_enable': 'VARCHAR',
+        'glusr_premium_added_date': 'TIMESTAMP',
+        'last_modified_date': 'TIMESTAMP',
+        'glusr_premium_updatedby_id': 'BIGINT',
+        'glusr_premium_updatedby': 'VARCHAR',
+        'glusr_premium_updatescreen': 'VARCHAR',
+        'glusr_premium_ip': 'VARCHAR',
+        'glusr_premium_ip_country': 'VARCHAR',
+        'glusr_premium_hist_comments': 'VARCHAR',
+        'glusr_premium_updatedby_url': 'VARCHAR',
+        'category_type': 'VARCHAR',
+        'location_type': 'VARCHAR',
+        'location_iso': 'VARCHAR',
+        'category_location_credit_value': 'DOUBLE'
     }
 )
-GROUP BY pc_item_img_status
-ORDER BY total_images DESC
+GROUP BY category_type
+ORDER BY total_listings DESC

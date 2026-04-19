@@ -1,54 +1,44 @@
--- GQ04 — GROUP BY high-cardinality column (pc_item_image_glusr_id, seller IDs)
--- Expected to have thousands of distinct values; likely to stress memory on 8 GB VM.
+-- GQ04 — GROUP BY high-cardinality column (fk_glusr_usr_id, user IDs)
+-- Expected to have thousands of distinct users; likely to stress memory on 8 GB VM.
 -- Dialect: DuckDB (read_csv_auto via httpfs)
 -- NOTE: Runner injects LOAD httpfs + SET s3_* credentials before executing this file.
 
 SELECT
-    pc_item_image_glusr_id,
-    COUNT(*)                                                    AS image_count,
-    COUNT(DISTINCT fk_pc_item_id)                               AS distinct_items,
-    SUM(CASE WHEN pc_item_img_status = 'A' THEN 1 ELSE 0 END)  AS active_count,
-    SUM(CASE WHEN pc_item_img_status = 'I' THEN 1 ELSE 0 END)  AS inactive_count,
-    MAX(pc_item_image_update_date)                              AS last_activity
+    fk_glusr_usr_id,
+    COUNT(*)                                                              AS listing_count,
+    COUNT(DISTINCT glusr_premium_mcat_id)                                 AS distinct_mcats,
+    SUM(CASE WHEN glusr_premium_enable = '1' THEN 1 ELSE 0 END)          AS enabled_count,
+    SUM(CASE WHEN flag_premium_listing = '1' THEN 1 ELSE 0 END)          AS premium_count,
+    MAX(last_modified_date)                                               AS last_activity
 FROM read_csv_auto(
-    's3://<GCS_PC_ITEM_IMAGE_PREFIX>',
+    's3://<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
     header = true,
     null_padding = true,
     columns = {
-        'pc_item_image_id': 'BIGINT',
-        'fk_pc_item_id': 'BIGINT',
-        'pc_item_image_updatedby': 'VARCHAR',
-        'pc_item_image_update_date': 'TIMESTAMP',
-        'pc_item_image_original': 'VARCHAR',
-        'pc_item_img_status': 'VARCHAR',
-        'fk_pc_item_doc_id': 'BIGINT',
-        'pc_item_img_doc_order': 'BIGINT',
-        'pc_item_image_original_flag': 'BIGINT',
-        'pc_item_image_125x125_flag': 'BIGINT',
-        'pc_item_image_250x250_flag': 'BIGINT',
-        'pc_item_image_500x500_flag': 'BIGINT',
-        'pc_item_image_1000x1000_flag': 'BIGINT',
-        'pc_item_image_glusr_id': 'BIGINT',
-        'pc_item_image_original_width': 'INTEGER',
-        'pc_item_image_original_height': 'INTEGER',
-        'pc_item_image_125x125_width': 'INTEGER',
-        'pc_item_image_125x125_height': 'INTEGER',
-        'pc_item_image_250x250_width': 'INTEGER',
-        'pc_item_image_250x250_height': 'INTEGER',
-        'pc_item_image_500x500_width': 'INTEGER',
-        'pc_item_image_500x500_height': 'INTEGER',
-        'pc_item_image_125x125': 'VARCHAR',
-        'pc_item_image_250x250': 'VARCHAR',
-        'pc_item_image_500x500': 'VARCHAR',
-        'fk_pc_item_img_rejection_code': 'INTEGER',
-        'pc_item_image_1000x1000': 'VARCHAR',
-        'pc_item_image_1000x1000_width': 'INTEGER',
-        'pc_item_image_1000x1000_height': 'INTEGER',
-        'pc_item_image_2000x2000': 'VARCHAR',
-        'pc_item_image_2000x2000_width': 'INTEGER',
-        'pc_item_image_2000x2000_height': 'INTEGER'
+        'glusr_premium_listing_id': 'BIGINT',
+        'fk_glusr_usr_id': 'BIGINT',
+        'glusr_premium_mcat_id': 'BIGINT',
+        'glusr_premium_city_id': 'BIGINT',
+        'flag_premium_listing': 'VARCHAR',
+        'fk_service_id': 'BIGINT',
+        'fk_cust_to_serv_id': 'BIGINT',
+        'pl_kwrd_term_upper': 'VARCHAR',
+        'glusr_premium_enable': 'VARCHAR',
+        'glusr_premium_added_date': 'TIMESTAMP',
+        'last_modified_date': 'TIMESTAMP',
+        'glusr_premium_updatedby_id': 'BIGINT',
+        'glusr_premium_updatedby': 'VARCHAR',
+        'glusr_premium_updatescreen': 'VARCHAR',
+        'glusr_premium_ip': 'VARCHAR',
+        'glusr_premium_ip_country': 'VARCHAR',
+        'glusr_premium_hist_comments': 'VARCHAR',
+        'glusr_premium_updatedby_url': 'VARCHAR',
+        'category_type': 'VARCHAR',
+        'location_type': 'VARCHAR',
+        'location_iso': 'VARCHAR',
+        'category_location_credit_value': 'DOUBLE'
     }
 )
-GROUP BY pc_item_image_glusr_id
-ORDER BY image_count DESC
+GROUP BY fk_glusr_usr_id
+ORDER BY listing_count DESC
 LIMIT 1000

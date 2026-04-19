@@ -1,5 +1,5 @@
--- GQ01 — Full scan + aggregate over pc_item_image CSV in GCS
--- Tests raw GCS-to-engine I/O throughput (~70 GB CSV).
+-- GQ01 — Full scan + aggregate over glusr_premium_listing CSV in GCS
+-- Tests raw GCS-to-engine I/O throughput.
 -- No filter; forces a complete file scan.
 -- Dialect: ClickHouse (s3() table function, CSVWithNames)
 -- Dialect differences vs Doris/DuckDB:
@@ -10,14 +10,14 @@
 --   No trailing semicolon — runner appends FORMAT JSON
 
 SELECT
-    count()                                         AS total_images,
-    uniqExact(fk_pc_item_id)                        AS distinct_items,
-    uniqExact(pc_item_image_glusr_id)               AS distinct_sellers,
-    min(pc_item_image_update_date)                  AS earliest_update,
-    max(pc_item_image_update_date)                  AS latest_update,
-    countIf(pc_item_img_status = 'A')               AS active_count
+    count()                                                   AS total_listings,
+    uniqExact(fk_glusr_usr_id)                                AS distinct_users,
+    uniqExact(glusr_premium_mcat_id)                          AS distinct_mcats,
+    min(glusr_premium_added_date)                             AS earliest_listing,
+    max(glusr_premium_added_date)                             AS latest_listing,
+    countIf(glusr_premium_enable = '1')                       AS enabled_count
 FROM s3(
-    'https://storage.googleapis.com/<GCS_BUCKET>/<GCS_PC_ITEM_IMAGE_PREFIX>',
+    'https://storage.googleapis.com/<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
     '<GCS_HMAC_ACCESS_KEY>',
     '<GCS_HMAC_SECRET>',
     'CSVWithNames'

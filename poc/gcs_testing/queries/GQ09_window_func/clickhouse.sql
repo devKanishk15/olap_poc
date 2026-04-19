@@ -1,5 +1,5 @@
--- GQ09 — Window function: rank sellers within each status bucket by image count
--- Two-level CTE: first aggregates per (glusr_id, status), then applies window functions.
+-- GQ09 — Window function: rank users within each category_type by listing count
+-- Two-level CTE: first aggregates per (fk_glusr_usr_id, category_type), then applies window functions.
 -- Memory-intensive; requires buffering the intermediate aggregate result.
 -- Dialect: ClickHouse (s3() table function, CSV + schema string)
 -- Dialect differences vs Doris/DuckDB:
@@ -10,37 +10,37 @@
 --   LIMIT 500 is important: ClickHouse materialises the full window frame before LIMIT
 --   No trailing semicolon — runner appends FORMAT JSON
 
-WITH seller_status_agg AS (
+WITH user_category_agg AS (
     SELECT
-        pc_item_image_glusr_id,
-        pc_item_img_status,
-        count()                        AS image_count,
-        uniqExact(fk_pc_item_id)      AS item_count,
-        max(pc_item_image_update_date) AS last_update
+        fk_glusr_usr_id,
+        category_type,
+        count()                        AS listing_count,
+        uniqExact(glusr_premium_mcat_id) AS mcat_count,
+        max(last_modified_date)        AS last_update
     FROM s3(
-        'https://storage.googleapis.com/<GCS_BUCKET>/<GCS_PC_ITEM_IMAGE_PREFIX>',
+        'https://storage.googleapis.com/<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
         '<GCS_HMAC_ACCESS_KEY>',
         '<GCS_HMAC_SECRET>',
         'CSV',
-        'pc_item_image_id UInt64, fk_pc_item_id UInt64, pc_item_image_original_width UInt32, pc_item_image_original_height UInt32, pc_item_image_125x125_width UInt32, pc_item_image_125x125_height UInt32, pc_item_image_250x250_width UInt32, pc_item_image_250x250_height UInt32, pc_item_image_500x500_width UInt32, pc_item_image_500x500_height UInt32, pc_item_image_original String, pc_item_image_125x125 String, pc_item_image_250x250 String, pc_item_image_500x500 String, pc_item_image_accessed_by UInt8, pc_item_image_updatedby String, pc_item_image_updatedby_id UInt64, pc_item_image_updatescreen String, pc_item_image_ip String, pc_item_image_ip_country String, pc_item_image_update_date DateTime, pc_item_image_hist_comments String, pc_item_image_updatedby_url String, pc_item_image_updby_agency String, pc_item_img_status String, fk_pc_item_img_rejection_code UInt32, fk_pc_item_doc_id UInt64, pc_item_img_doc_order UInt64, pc_item_image_1000x1000 String, pc_item_image_1000x1000_width UInt32, pc_item_image_1000x1000_height UInt32, pc_item_image_glusr_id UInt64, pc_item_image_2000x2000 String, pc_item_image_2000x2000_width UInt32, pc_item_image_2000x2000_height UInt32'
+        'glusr_premium_listing_id UInt64, fk_glusr_usr_id UInt64, glusr_premium_mcat_id UInt64, glusr_premium_city_id UInt64, flag_premium_listing String, fk_service_id UInt64, fk_cust_to_serv_id UInt64, pl_kwrd_term_upper String, glusr_premium_enable String, glusr_premium_added_date DateTime, last_modified_date DateTime, glusr_premium_updatedby_id UInt64, glusr_premium_updatedby String, glusr_premium_updatescreen String, glusr_premium_ip String, glusr_premium_ip_country String, glusr_premium_hist_comments String, glusr_premium_updatedby_url String, category_type String, location_type String, location_iso String, category_location_credit_value Float64'
     )
-    WHERE isNotNull(pc_item_image_glusr_id)
-    GROUP BY pc_item_image_glusr_id, pc_item_img_status
+    WHERE isNotNull(fk_glusr_usr_id)
+    GROUP BY fk_glusr_usr_id, category_type
 )
 SELECT
-    pc_item_image_glusr_id,
-    pc_item_img_status,
-    image_count,
-    item_count,
+    fk_glusr_usr_id,
+    category_type,
+    listing_count,
+    mcat_count,
     row_number() OVER (
-        PARTITION BY pc_item_img_status
-        ORDER BY image_count DESC
-    )                                  AS rank_within_status,
-    sum(image_count) OVER (
-        PARTITION BY pc_item_img_status
-        ORDER BY image_count DESC
+        PARTITION BY category_type
+        ORDER BY listing_count DESC
+    )                                     AS rank_within_category,
+    sum(listing_count) OVER (
+        PARTITION BY category_type
+        ORDER BY listing_count DESC
         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-    )                                  AS running_image_total
-FROM seller_status_agg
-ORDER BY pc_item_img_status, rank_within_status
+    )                                     AS running_listing_total
+FROM user_category_agg
+ORDER BY category_type, rank_within_category
 LIMIT 500
