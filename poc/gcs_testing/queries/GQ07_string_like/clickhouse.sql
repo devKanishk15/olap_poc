@@ -1,5 +1,6 @@
--- GQ07 — String LIKE scan on URL columns and hist_comments
--- Stresses string scanning on the widest columns (varchar(350) URLs + varchar(1000) comments).
+-- GQ07 — String LIKE scan on keyword and comment columns
+-- Stresses string scanning on wide columns: pl_kwrd_term_upper (varchar 500),
+-- glusr_premium_hist_comments (varchar 1000), glusr_premium_updatedby_url (varchar 255).
 -- High I/O cost per row due to column widths.
 -- Dialect: ClickHouse (s3() table function, CSV + schema string)
 -- Dialect differences vs Doris/DuckDB:
@@ -9,19 +10,19 @@
 --   No trailing semicolon — runner appends FORMAT JSON
 
 SELECT
-    pc_item_img_status,
-    count()                                AS matched_images,
-    uniqExact(pc_item_image_glusr_id)     AS sellers_with_match
+    category_type,
+    count()                                AS matched_listings,
+    uniqExact(fk_glusr_usr_id)             AS users_with_match
 FROM s3(
-    'https://storage.googleapis.com/<GCS_BUCKET>/<GCS_PC_ITEM_IMAGE_PREFIX>',
+    'https://storage.googleapis.com/<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
     '<GCS_HMAC_ACCESS_KEY>',
     '<GCS_HMAC_SECRET>',
     'CSV',
-    'pc_item_image_id UInt64, fk_pc_item_id UInt64, pc_item_image_original_width UInt32, pc_item_image_original_height UInt32, pc_item_image_125x125_width UInt32, pc_item_image_125x125_height UInt32, pc_item_image_250x250_width UInt32, pc_item_image_250x250_height UInt32, pc_item_image_500x500_width UInt32, pc_item_image_500x500_height UInt32, pc_item_image_original String, pc_item_image_125x125 String, pc_item_image_250x250 String, pc_item_image_500x500 String, pc_item_image_accessed_by UInt8, pc_item_image_updatedby String, pc_item_image_updatedby_id UInt64, pc_item_image_updatescreen String, pc_item_image_ip String, pc_item_image_ip_country String, pc_item_image_update_date DateTime, pc_item_image_hist_comments String, pc_item_image_updatedby_url String, pc_item_image_updby_agency String, pc_item_img_status String, fk_pc_item_img_rejection_code UInt32, fk_pc_item_doc_id UInt64, pc_item_img_doc_order UInt64, pc_item_image_1000x1000 String, pc_item_image_1000x1000_width UInt32, pc_item_image_1000x1000_height UInt32, pc_item_image_glusr_id UInt64, pc_item_image_2000x2000 String, pc_item_image_2000x2000_width UInt32, pc_item_image_2000x2000_height UInt32'
+    'glusr_premium_listing_id UInt64, fk_glusr_usr_id UInt64, glusr_premium_mcat_id UInt64, glusr_premium_city_id UInt64, flag_premium_listing String, fk_service_id UInt64, fk_cust_to_serv_id UInt64, pl_kwrd_term_upper String, glusr_premium_enable String, glusr_premium_added_date DateTime, last_modified_date DateTime, glusr_premium_updatedby_id UInt64, glusr_premium_updatedby String, glusr_premium_updatescreen String, glusr_premium_ip String, glusr_premium_ip_country String, glusr_premium_hist_comments String, glusr_premium_updatedby_url String, category_type String, location_type String, location_iso String, category_location_credit_value Float64'
 )
 WHERE
-    like(pc_item_image_original, '%/images/%')
-    OR like(pc_item_image_500x500, '%cdn%')
-    OR like(pc_item_image_hist_comments, '%approved%')
-GROUP BY pc_item_img_status
-ORDER BY matched_images DESC
+    like(pl_kwrd_term_upper, '%PREMIUM%')
+    OR like(glusr_premium_hist_comments, '%approved%')
+    OR like(glusr_premium_updatedby_url, '%http%')
+GROUP BY category_type
+ORDER BY matched_listings DESC

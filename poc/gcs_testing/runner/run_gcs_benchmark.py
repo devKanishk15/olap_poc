@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-run_gcs_benchmark.py — GCS read-only benchmark runner for pc_item_image.
+run_gcs_benchmark.py — GCS read-only benchmark runner for glusr_premium_listing.
 
-Runs 10 read queries (GQ01–GQ10) against the pc_item_image CSV file in GCS
+Runs 10 read queries (GQ01–GQ10) against the glusr_premium_listing CSV file in GCS
 directly from each engine's native GCS/S3-compatible table function.
 No local data loading is performed.
 
@@ -93,15 +93,15 @@ def load_env() -> dict:
 
 def validate_env(env: dict) -> None:
     """Raise if required GCS variables are missing."""
-    required = ["GCS_BUCKET", "GCS_HMAC_ACCESS_KEY", "GCS_HMAC_SECRET", "GCS_PC_ITEM_IMAGE_PREFIX"]
+    required = ["GCS_BUCKET", "GCS_HMAC_ACCESS_KEY", "GCS_HMAC_SECRET", "GCS_GLUSR_PREMIUM_LISTING_PREFIX"]
     missing  = [k for k in required if not env.get(k) or env[k].startswith("your-")]
     if missing:
         sys.exit(
             "\nERROR: Missing or placeholder GCS credentials in .env:\n"
             + "\n".join(f"  {k}" for k in missing)
             + "\n\nSet these in poc/.env or export them as environment variables.\n"
-            "  GCS_PC_ITEM_IMAGE_PREFIX — path within the bucket, "
-            "e.g. pc_feature/PC_ITEM_IMAGE.csv\n"
+            "  GCS_GLUSR_PREMIUM_LISTING_PREFIX — path within the bucket, "
+            "e.g. pc_feature/GLUSR_PREMIUM_LISTING.csv\n"
         )
 
 
@@ -111,10 +111,10 @@ def validate_env(env: dict) -> None:
 
 def substitute_sql(sql: str, env: dict) -> str:
     """Replace the four GCS placeholder tokens in a SQL file."""
-    sql = sql.replace("<GCS_BUCKET>",                  env.get("GCS_BUCKET", "YOUR_BUCKET"))
-    sql = sql.replace("<GCS_PC_ITEM_IMAGE_PREFIX>",    env.get("GCS_PC_ITEM_IMAGE_PREFIX", "YOUR_PREFIX"))
-    sql = sql.replace("<GCS_HMAC_ACCESS_KEY>",         env.get("GCS_HMAC_ACCESS_KEY", "YOUR_KEY"))
-    sql = sql.replace("<GCS_HMAC_SECRET>",             env.get("GCS_HMAC_SECRET", "YOUR_SECRET"))
+    sql = sql.replace("<GCS_BUCKET>",                          env.get("GCS_BUCKET", "YOUR_BUCKET"))
+    sql = sql.replace("<GCS_GLUSR_PREMIUM_LISTING_PREFIX>",    env.get("GCS_GLUSR_PREMIUM_LISTING_PREFIX", "YOUR_PREFIX"))
+    sql = sql.replace("<GCS_HMAC_ACCESS_KEY>",                 env.get("GCS_HMAC_ACCESS_KEY", "YOUR_KEY"))
+    sql = sql.replace("<GCS_HMAC_SECRET>",                     env.get("GCS_HMAC_SECRET", "YOUR_SECRET"))
     return sql
 
 
@@ -384,7 +384,7 @@ def run_query(query_id: str, engine: str, env: dict) -> dict:
             "error":       last_err,
             "warm_iters":  0,
             "spill_bytes": spill_b,
-            "gcs_prefix":  env.get("GCS_PC_ITEM_IMAGE_PREFIX", ""),
+            "gcs_prefix":  env.get("GCS_GLUSR_PREMIUM_LISTING_PREFIX", ""),
             "timestamp":   datetime.now(timezone.utc).isoformat(),
         }
 
@@ -402,7 +402,7 @@ def run_query(query_id: str, engine: str, env: dict) -> dict:
             "error":       last_err,
             "warm_iters":  0,
             "spill_bytes": spill_b,
-            "gcs_prefix":  env.get("GCS_PC_ITEM_IMAGE_PREFIX", ""),
+            "gcs_prefix":  env.get("GCS_GLUSR_PREMIUM_LISTING_PREFIX", ""),
             "timestamp":   datetime.now(timezone.utc).isoformat(),
         }
 
@@ -421,7 +421,7 @@ def run_query(query_id: str, engine: str, env: dict) -> dict:
         "error":         None,
         "warm_iters":    len(timings),
         "spill_bytes":   spill_b,
-        "gcs_prefix":    env.get("GCS_PC_ITEM_IMAGE_PREFIX", ""),
+        "gcs_prefix":    env.get("GCS_GLUSR_PREMIUM_LISTING_PREFIX", ""),
         "timestamp":     datetime.now(timezone.utc).isoformat(),
     }
 
@@ -505,7 +505,7 @@ def print_summary(results: list[dict]) -> None:
 def main() -> None:
     global WARM_ITERS, TIMEOUT_S
     parser = argparse.ArgumentParser(
-        description="GCS read-only benchmark runner for pc_item_image CSV",
+        description="GCS read-only benchmark runner for glusr_premium_listing CSV",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -558,12 +558,12 @@ Examples:
     out_file = RESULTS_DIR / f"{args.engine}_gcs_{ts}.jsonl"
 
     print("=" * 70)
-    print(f"  GCS Read Benchmark — pc_item_image")
+    print(f"  GCS Read Benchmark — glusr_premium_listing")
     print(f"  Engine  : {args.engine}")
     print(f"  Queries : {len(to_run)}")
     print(f"  Warm    : {WARM_ITERS} iterations per query")
     print(f"  Timeout : {TIMEOUT_S}s per query")
-    print(f"  Prefix  : {env.get('GCS_PC_ITEM_IMAGE_PREFIX', '?')}")
+    print(f"  Prefix  : {env.get('GCS_GLUSR_PREMIUM_LISTING_PREFIX', '?')}")
     print(f"  Output  : {out_file}")
     print("=" * 70)
 

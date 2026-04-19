@@ -1,74 +1,63 @@
 -- GQ10 — Heavy multi-column scan (deliberate memory pressure / spill candidate)
--- Reads all URL varchar(350) columns across the full CSV.
+-- Reads all wide text columns: pl_kwrd_term_upper (500), glusr_premium_hist_comments (1000),
+-- glusr_premium_updatedby_url (255), glusr_premium_updatedby (255).
 -- Two-level CTE with 2-column GROUP BY; designed to exhaust 8 GB RAM and trigger spill.
--- Note: ip_country and hist_comments absent from this CSV version;
---       has_comment_count replaced with has_1000x1000_count.
 -- Dialect: DuckDB (read_csv_auto via httpfs)
 -- NOTE: Runner injects LOAD httpfs + SET s3_* credentials + SET memory_limit = '6GB'
 --       + SET temp_directory before executing this file. Spill is expected.
 
-WITH per_seller_status AS (
+WITH per_user_category AS (
     SELECT
-        pc_item_image_glusr_id,
-        pc_item_img_status,
-        COUNT(*)                                                                        AS image_count,
-        COUNT(DISTINCT fk_pc_item_id)                                                   AS item_count,
-        SUM(CASE WHEN pc_item_image_1000x1000 IS NOT NULL
-                  AND pc_item_image_1000x1000 <> '' THEN 1 ELSE 0 END)                 AS has_1000_count,
-        SUM(CASE WHEN pc_item_image_original  LIKE '%http%' THEN 1 ELSE 0 END)          AS original_http_count,
-        SUM(CASE WHEN pc_item_image_500x500   LIKE '%http%' THEN 1 ELSE 0 END)          AS thumb_500_http_count,
-        MAX(pc_item_image_update_date)                                                  AS last_update
+        fk_glusr_usr_id,
+        category_type,
+        COUNT(*)                                                                      AS listing_count,
+        COUNT(DISTINCT glusr_premium_mcat_id)                                         AS mcat_count,
+        SUM(CASE WHEN glusr_premium_hist_comments IS NOT NULL
+                  AND glusr_premium_hist_comments <> '' THEN 1 ELSE 0 END)            AS has_comment_count,
+        SUM(CASE WHEN pl_kwrd_term_upper LIKE '%PREMIUM%' THEN 1 ELSE 0 END)          AS premium_keyword_count,
+        SUM(CASE WHEN glusr_premium_updatedby_url LIKE '%http%' THEN 1 ELSE 0 END)   AS has_url_count,
+        MAX(last_modified_date)                                                       AS last_update
     FROM read_csv_auto(
-        's3://<GCS_PC_ITEM_IMAGE_PREFIX>',
+        's3://<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
         header = true,
         null_padding = true,
         columns = {
-            'pc_item_image_id': 'BIGINT',
-            'fk_pc_item_id': 'BIGINT',
-            'pc_item_image_updatedby': 'VARCHAR',
-            'pc_item_image_update_date': 'TIMESTAMP',
-            'pc_item_image_original': 'VARCHAR',
-            'pc_item_img_status': 'VARCHAR',
-            'fk_pc_item_doc_id': 'BIGINT',
-            'pc_item_img_doc_order': 'BIGINT',
-            'pc_item_image_original_flag': 'BIGINT',
-            'pc_item_image_125x125_flag': 'BIGINT',
-            'pc_item_image_250x250_flag': 'BIGINT',
-            'pc_item_image_500x500_flag': 'BIGINT',
-            'pc_item_image_1000x1000_flag': 'BIGINT',
-            'pc_item_image_glusr_id': 'BIGINT',
-            'pc_item_image_original_width': 'INTEGER',
-            'pc_item_image_original_height': 'INTEGER',
-            'pc_item_image_125x125_width': 'INTEGER',
-            'pc_item_image_125x125_height': 'INTEGER',
-            'pc_item_image_250x250_width': 'INTEGER',
-            'pc_item_image_250x250_height': 'INTEGER',
-            'pc_item_image_500x500_width': 'INTEGER',
-            'pc_item_image_500x500_height': 'INTEGER',
-            'pc_item_image_125x125': 'VARCHAR',
-            'pc_item_image_250x250': 'VARCHAR',
-            'pc_item_image_500x500': 'VARCHAR',
-            'fk_pc_item_img_rejection_code': 'INTEGER',
-            'pc_item_image_1000x1000': 'VARCHAR',
-            'pc_item_image_1000x1000_width': 'INTEGER',
-            'pc_item_image_1000x1000_height': 'INTEGER',
-            'pc_item_image_2000x2000': 'VARCHAR',
-            'pc_item_image_2000x2000_width': 'INTEGER',
-            'pc_item_image_2000x2000_height': 'INTEGER'
+            'glusr_premium_listing_id': 'BIGINT',
+            'fk_glusr_usr_id': 'BIGINT',
+            'glusr_premium_mcat_id': 'BIGINT',
+            'glusr_premium_city_id': 'BIGINT',
+            'flag_premium_listing': 'VARCHAR',
+            'fk_service_id': 'BIGINT',
+            'fk_cust_to_serv_id': 'BIGINT',
+            'pl_kwrd_term_upper': 'VARCHAR',
+            'glusr_premium_enable': 'VARCHAR',
+            'glusr_premium_added_date': 'TIMESTAMP',
+            'last_modified_date': 'TIMESTAMP',
+            'glusr_premium_updatedby_id': 'BIGINT',
+            'glusr_premium_updatedby': 'VARCHAR',
+            'glusr_premium_updatescreen': 'VARCHAR',
+            'glusr_premium_ip': 'VARCHAR',
+            'glusr_premium_ip_country': 'VARCHAR',
+            'glusr_premium_hist_comments': 'VARCHAR',
+            'glusr_premium_updatedby_url': 'VARCHAR',
+            'category_type': 'VARCHAR',
+            'location_type': 'VARCHAR',
+            'location_iso': 'VARCHAR',
+            'category_location_credit_value': 'DOUBLE'
         }
     )
-    GROUP BY pc_item_image_glusr_id, pc_item_img_status
+    GROUP BY fk_glusr_usr_id, category_type
 )
 SELECT
-    pc_item_img_status,
-    COUNT(DISTINCT pc_item_image_glusr_id) AS sellers,
-    SUM(image_count)                       AS total_images,
-    SUM(item_count)                        AS total_items,
-    SUM(has_1000_count)                    AS images_with_1000x1000,
-    SUM(original_http_count)               AS original_http_total,
-    SUM(thumb_500_http_count)              AS thumb_500_http_total,
-    AVG(image_count)                       AS avg_images_per_seller_status
-FROM per_seller_status
-GROUP BY pc_item_img_status
-ORDER BY total_images DESC
+    category_type,
+    COUNT(DISTINCT fk_glusr_usr_id)   AS users,
+    SUM(listing_count)                AS total_listings,
+    SUM(mcat_count)                   AS total_mcats,
+    SUM(has_comment_count)            AS listings_with_comments,
+    SUM(premium_keyword_count)        AS premium_keyword_total,
+    SUM(has_url_count)                AS url_total,
+    AVG(listing_count)                AS avg_listings_per_user_category
+FROM per_user_category
+GROUP BY category_type
+ORDER BY total_listings DESC
 LIMIT 200

@@ -1,55 +1,46 @@
--- GQ07 — String LIKE scan on URL columns
--- Stresses string scanning on the widest columns (varchar(350) URLs).
+-- GQ07 — String LIKE scan on keyword and comment columns
+-- Stresses string scanning on wide columns: pl_kwrd_term_upper (varchar 500),
+-- glusr_premium_hist_comments (varchar 1000), glusr_premium_updatedby_url (varchar 255).
 -- High I/O cost per row due to column widths.
 -- Dialect: DuckDB (read_csv_auto via httpfs)
 -- NOTE: Runner injects LOAD httpfs + SET s3_* credentials before executing this file.
 
 SELECT
-    pc_item_img_status,
-    COUNT(*)                               AS matched_images,
-    COUNT(DISTINCT pc_item_image_glusr_id) AS sellers_with_match
+    category_type,
+    COUNT(*)                               AS matched_listings,
+    COUNT(DISTINCT fk_glusr_usr_id)        AS users_with_match
 FROM read_csv_auto(
-    's3://<GCS_PC_ITEM_IMAGE_PREFIX>',
+    's3://<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
     header = true,
     null_padding = true,
     columns = {
-        'pc_item_image_id': 'BIGINT',
-        'fk_pc_item_id': 'BIGINT',
-        'pc_item_image_updatedby': 'VARCHAR',
-        'pc_item_image_update_date': 'TIMESTAMP',
-        'pc_item_image_original': 'VARCHAR',
-        'pc_item_img_status': 'VARCHAR',
-        'fk_pc_item_doc_id': 'BIGINT',
-        'pc_item_img_doc_order': 'BIGINT',
-        'pc_item_image_original_flag': 'BIGINT',
-        'pc_item_image_125x125_flag': 'BIGINT',
-        'pc_item_image_250x250_flag': 'BIGINT',
-        'pc_item_image_500x500_flag': 'BIGINT',
-        'pc_item_image_1000x1000_flag': 'BIGINT',
-        'pc_item_image_glusr_id': 'BIGINT',
-        'pc_item_image_original_width': 'INTEGER',
-        'pc_item_image_original_height': 'INTEGER',
-        'pc_item_image_125x125_width': 'INTEGER',
-        'pc_item_image_125x125_height': 'INTEGER',
-        'pc_item_image_250x250_width': 'INTEGER',
-        'pc_item_image_250x250_height': 'INTEGER',
-        'pc_item_image_500x500_width': 'INTEGER',
-        'pc_item_image_500x500_height': 'INTEGER',
-        'pc_item_image_125x125': 'VARCHAR',
-        'pc_item_image_250x250': 'VARCHAR',
-        'pc_item_image_500x500': 'VARCHAR',
-        'fk_pc_item_img_rejection_code': 'INTEGER',
-        'pc_item_image_1000x1000': 'VARCHAR',
-        'pc_item_image_1000x1000_width': 'INTEGER',
-        'pc_item_image_1000x1000_height': 'INTEGER',
-        'pc_item_image_2000x2000': 'VARCHAR',
-        'pc_item_image_2000x2000_width': 'INTEGER',
-        'pc_item_image_2000x2000_height': 'INTEGER'
+        'glusr_premium_listing_id': 'BIGINT',
+        'fk_glusr_usr_id': 'BIGINT',
+        'glusr_premium_mcat_id': 'BIGINT',
+        'glusr_premium_city_id': 'BIGINT',
+        'flag_premium_listing': 'VARCHAR',
+        'fk_service_id': 'BIGINT',
+        'fk_cust_to_serv_id': 'BIGINT',
+        'pl_kwrd_term_upper': 'VARCHAR',
+        'glusr_premium_enable': 'VARCHAR',
+        'glusr_premium_added_date': 'TIMESTAMP',
+        'last_modified_date': 'TIMESTAMP',
+        'glusr_premium_updatedby_id': 'BIGINT',
+        'glusr_premium_updatedby': 'VARCHAR',
+        'glusr_premium_updatescreen': 'VARCHAR',
+        'glusr_premium_ip': 'VARCHAR',
+        'glusr_premium_ip_country': 'VARCHAR',
+        'glusr_premium_hist_comments': 'VARCHAR',
+        'glusr_premium_updatedby_url': 'VARCHAR',
+        'category_type': 'VARCHAR',
+        'location_type': 'VARCHAR',
+        'location_iso': 'VARCHAR',
+        'category_location_credit_value': 'DOUBLE'
     }
 )
 WHERE
-    pc_item_image_original   LIKE '%/images/%'
-    OR pc_item_image_500x500 LIKE '%cdn%'
-    OR pc_item_image_1000x1000 LIKE '%http%'
-GROUP BY pc_item_img_status
-ORDER BY matched_images DESC
+    pl_kwrd_term_upper              LIKE '%PREMIUM%'
+    OR glusr_premium_hist_comments  LIKE '%approved%'
+    OR glusr_premium_updatedby_url  LIKE '%http%'
+GROUP BY category_type
+ORDER BY matched_listings DESC

@@ -1,72 +1,62 @@
--- GQ09 — Window function: rank sellers within each status bucket by image count
--- Two-level CTE: first aggregates per (glusr_id, status), then applies window functions.
+-- GQ09 — Window function: rank users within each category_type by listing count
+-- Two-level CTE: first aggregates per (fk_glusr_usr_id, category_type), then applies window functions.
 -- Memory-intensive; requires buffering the intermediate aggregate result.
 -- Dialect: DuckDB (read_csv_auto via httpfs)
 -- NOTE: Runner injects LOAD httpfs + SET s3_* credentials before executing this file.
 
-WITH seller_status_agg AS (
+WITH user_category_agg AS (
     SELECT
-        pc_item_image_glusr_id,
-        pc_item_img_status,
-        COUNT(*)                       AS image_count,
-        COUNT(DISTINCT fk_pc_item_id)  AS item_count,
-        MAX(pc_item_image_update_date) AS last_update
+        fk_glusr_usr_id,
+        category_type,
+        COUNT(*)                              AS listing_count,
+        COUNT(DISTINCT glusr_premium_mcat_id) AS mcat_count,
+        MAX(last_modified_date)               AS last_update
     FROM read_csv_auto(
-        's3://<GCS_PC_ITEM_IMAGE_PREFIX>',
+        's3://<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
         header = true,
         null_padding = true,
         columns = {
-            'pc_item_image_id': 'BIGINT',
-            'fk_pc_item_id': 'BIGINT',
-            'pc_item_image_updatedby': 'VARCHAR',
-            'pc_item_image_update_date': 'TIMESTAMP',
-            'pc_item_image_original': 'VARCHAR',
-            'pc_item_img_status': 'VARCHAR',
-            'fk_pc_item_doc_id': 'BIGINT',
-            'pc_item_img_doc_order': 'BIGINT',
-            'pc_item_image_original_flag': 'BIGINT',
-            'pc_item_image_125x125_flag': 'BIGINT',
-            'pc_item_image_250x250_flag': 'BIGINT',
-            'pc_item_image_500x500_flag': 'BIGINT',
-            'pc_item_image_1000x1000_flag': 'BIGINT',
-            'pc_item_image_glusr_id': 'BIGINT',
-            'pc_item_image_original_width': 'INTEGER',
-            'pc_item_image_original_height': 'INTEGER',
-            'pc_item_image_125x125_width': 'INTEGER',
-            'pc_item_image_125x125_height': 'INTEGER',
-            'pc_item_image_250x250_width': 'INTEGER',
-            'pc_item_image_250x250_height': 'INTEGER',
-            'pc_item_image_500x500_width': 'INTEGER',
-            'pc_item_image_500x500_height': 'INTEGER',
-            'pc_item_image_125x125': 'VARCHAR',
-            'pc_item_image_250x250': 'VARCHAR',
-            'pc_item_image_500x500': 'VARCHAR',
-            'fk_pc_item_img_rejection_code': 'INTEGER',
-            'pc_item_image_1000x1000': 'VARCHAR',
-            'pc_item_image_1000x1000_width': 'INTEGER',
-            'pc_item_image_1000x1000_height': 'INTEGER',
-            'pc_item_image_2000x2000': 'VARCHAR',
-            'pc_item_image_2000x2000_width': 'INTEGER',
-            'pc_item_image_2000x2000_height': 'INTEGER'
+            'glusr_premium_listing_id': 'BIGINT',
+            'fk_glusr_usr_id': 'BIGINT',
+            'glusr_premium_mcat_id': 'BIGINT',
+            'glusr_premium_city_id': 'BIGINT',
+            'flag_premium_listing': 'VARCHAR',
+            'fk_service_id': 'BIGINT',
+            'fk_cust_to_serv_id': 'BIGINT',
+            'pl_kwrd_term_upper': 'VARCHAR',
+            'glusr_premium_enable': 'VARCHAR',
+            'glusr_premium_added_date': 'TIMESTAMP',
+            'last_modified_date': 'TIMESTAMP',
+            'glusr_premium_updatedby_id': 'BIGINT',
+            'glusr_premium_updatedby': 'VARCHAR',
+            'glusr_premium_updatescreen': 'VARCHAR',
+            'glusr_premium_ip': 'VARCHAR',
+            'glusr_premium_ip_country': 'VARCHAR',
+            'glusr_premium_hist_comments': 'VARCHAR',
+            'glusr_premium_updatedby_url': 'VARCHAR',
+            'category_type': 'VARCHAR',
+            'location_type': 'VARCHAR',
+            'location_iso': 'VARCHAR',
+            'category_location_credit_value': 'DOUBLE'
         }
     )
-    WHERE pc_item_image_glusr_id IS NOT NULL
-    GROUP BY pc_item_image_glusr_id, pc_item_img_status
+    WHERE fk_glusr_usr_id IS NOT NULL
+    GROUP BY fk_glusr_usr_id, category_type
 )
 SELECT
-    pc_item_image_glusr_id,
-    pc_item_img_status,
-    image_count,
-    item_count,
+    fk_glusr_usr_id,
+    category_type,
+    listing_count,
+    mcat_count,
     ROW_NUMBER() OVER (
-        PARTITION BY pc_item_img_status
-        ORDER BY image_count DESC
-    )                                  AS rank_within_status,
-    SUM(image_count) OVER (
-        PARTITION BY pc_item_img_status
-        ORDER BY image_count DESC
+        PARTITION BY category_type
+        ORDER BY listing_count DESC
+    )                                     AS rank_within_category,
+    SUM(listing_count) OVER (
+        PARTITION BY category_type
+        ORDER BY listing_count DESC
         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-    )                                  AS running_image_total
-FROM seller_status_agg
-ORDER BY pc_item_img_status, rank_within_status
+    )                                     AS running_listing_total
+FROM user_category_agg
+ORDER BY category_type, rank_within_category
 LIMIT 500
