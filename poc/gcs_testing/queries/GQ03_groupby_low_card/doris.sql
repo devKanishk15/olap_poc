@@ -12,6 +12,7 @@ SELECT
 FROM s3(
     "uri"              = "s3://<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>",
     "s3.endpoint"      = "https://storage.googleapis.com",
+    "s3.region"        = "<GCS_REGION>",
     "s3.access_key"    = "<GCS_HMAC_ACCESS_KEY>",
     "s3.secret_key"    = "<GCS_HMAC_SECRET>",
     "format"           = "csv",
