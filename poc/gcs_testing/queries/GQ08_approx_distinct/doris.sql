@@ -10,7 +10,7 @@ SELECT
     COUNT(DISTINCT fk_glusr_usr_id)                  AS exact_distinct_users,
     APPROX_COUNT_DISTINCT(glusr_premium_mcat_id)     AS approx_distinct_mcats
 FROM s3(
-    "uri"              = "https://storage.googleapis.com/<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>",
+    "uri"              = "s3://<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>",
     "s3.endpoint"      = "https://storage.googleapis.com",
     "s3.region"        = "<GCS_REGION>",
     "s3.access_key"    = "<GCS_HMAC_ACCESS_KEY>",
