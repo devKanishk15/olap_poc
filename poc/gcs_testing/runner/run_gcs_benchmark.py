@@ -537,13 +537,23 @@ Examples:
     if args.queries.upper() == "ALL":
         to_run = list(QUERY_IDS)
     else:
-        to_run = [q.strip() for q in args.queries.split(",")]
-        unknown = [q for q in to_run if q not in QUERY_IDS]
+        resolved = []
+        unknown = []
+        for q in [x.strip() for x in args.queries.split(",")]:
+            if q in QUERY_IDS:
+                resolved.append(q)
+            else:
+                matches = [qid for qid in QUERY_IDS if qid.startswith(q)]
+                if matches:
+                    resolved.extend(matches)
+                else:
+                    unknown.append(q)
         if unknown:
             sys.exit(
                 f"\nERROR: Unknown query ID(s): {', '.join(unknown)}\n"
                 f"Valid IDs: {', '.join(QUERY_IDS)}\n"
             )
+        to_run = resolved
 
     # Dry-run: no engine validation needed
     if args.dry_run:
