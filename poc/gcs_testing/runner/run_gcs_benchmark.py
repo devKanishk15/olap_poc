@@ -110,11 +110,12 @@ def validate_env(env: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def substitute_sql(sql: str, env: dict) -> str:
-    """Replace the four GCS placeholder tokens in a SQL file."""
+    """Replace GCS placeholder tokens in a SQL file."""
     sql = sql.replace("<GCS_BUCKET>",                          env.get("GCS_BUCKET", "YOUR_BUCKET"))
     sql = sql.replace("<GCS_GLUSR_PREMIUM_LISTING_PREFIX>",    env.get("GCS_GLUSR_PREMIUM_LISTING_PREFIX", "YOUR_PREFIX"))
     sql = sql.replace("<GCS_HMAC_ACCESS_KEY>",                 env.get("GCS_HMAC_ACCESS_KEY", "YOUR_KEY"))
     sql = sql.replace("<GCS_HMAC_SECRET>",                     env.get("GCS_HMAC_SECRET", "YOUR_SECRET"))
+    sql = sql.replace("<GCS_REGION>",                          env.get("GCS_REGION", "us-east-1"))
     return sql
 
 
