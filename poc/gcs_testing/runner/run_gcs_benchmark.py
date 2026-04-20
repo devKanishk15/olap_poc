@@ -101,7 +101,7 @@ def validate_env(env: dict) -> None:
             + "\n".join(f"  {k}" for k in missing)
             + "\n\nSet these in poc/.env or export them as environment variables.\n"
             "  GCS_GLUSR_PREMIUM_LISTING_PREFIX — path within the bucket, "
-            "e.g. pc_feature/GLUSR_PREMIUM_LISTING.csv\n"
+            "e.g. GLUSR_PREMIUM_LISTING.csv\n"
         )
 
 
@@ -115,7 +115,7 @@ def substitute_sql(sql: str, env: dict) -> str:
     sql = sql.replace("<GCS_GLUSR_PREMIUM_LISTING_PREFIX>",    env.get("GCS_GLUSR_PREMIUM_LISTING_PREFIX", "YOUR_PREFIX"))
     sql = sql.replace("<GCS_HMAC_ACCESS_KEY>",                 env.get("GCS_HMAC_ACCESS_KEY", "YOUR_KEY"))
     sql = sql.replace("<GCS_HMAC_SECRET>",                     env.get("GCS_HMAC_SECRET", "YOUR_SECRET"))
-    sql = sql.replace("<GCS_REGION>",                          env.get("GCS_REGION", "us-east-1"))
+    sql = sql.replace("<GCS_REGION>",                          env.get("GCS_REGION", "ASIA-SOUTH1"))
     return sql
 
 
