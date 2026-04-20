@@ -28,7 +28,7 @@ WITH per_user_category_country AS (
         '<GCS_HMAC_ACCESS_KEY>',
         '<GCS_HMAC_SECRET>',
         'CSV',
-        'glusr_premium_listing_id UInt64, fk_glusr_usr_id UInt64, glusr_premium_mcat_id UInt64, glusr_premium_city_id UInt64, flag_premium_listing String, fk_service_id UInt64, fk_cust_to_serv_id UInt64, pl_kwrd_term_upper String, glusr_premium_enable String, glusr_premium_added_date DateTime64(6), last_modified_date DateTime64(6), glusr_premium_updatedby_id UInt64, glusr_premium_updatedby String, glusr_premium_updatescreen String, glusr_premium_ip String, glusr_premium_ip_country String, glusr_premium_hist_comments String, glusr_premium_updatedby_url String, category_type String, location_type String, location_iso String, category_location_credit_value Float64'
+        'glusr_premium_listing_id Int64, fk_glusr_usr_id Int64, glusr_premium_mcat_id Int64, glusr_premium_city_id Int64, flag_premium_listing String, fk_service_id Int64, fk_cust_to_serv_id Int64, pl_kwrd_term_upper String, glusr_premium_enable String, glusr_premium_added_date DateTime64(6), last_modified_date DateTime64(6), glusr_premium_updatedby_id Int64, glusr_premium_updatedby String, glusr_premium_updatescreen String, glusr_premium_ip String, glusr_premium_ip_country String, glusr_premium_hist_comments String, glusr_premium_updatedby_url String, category_type String, location_type String, location_iso String, category_location_credit_value Float64'
     )
     GROUP BY fk_glusr_usr_id, category_type, glusr_premium_ip_country
 )
@@ -46,4 +46,4 @@ FROM per_user_category_country
 GROUP BY category_type, glusr_premium_ip_country
 ORDER BY total_listings DESC
 LIMIT 200
-SETTINGS max_bytes_before_external_group_by = 3000000000
+SETTINGS max_bytes_before_external_group_by = 3000000000, input_format_csv_empty_as_default = 1
