@@ -10,7 +10,7 @@ SELECT
     COUNT(*)                               AS matched_listings,
     COUNT(DISTINCT fk_glusr_usr_id)        AS users_with_match
 FROM read_csv_auto(
-    's3://<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
+    's3://<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
     header = true,
     null_padding = true
 )

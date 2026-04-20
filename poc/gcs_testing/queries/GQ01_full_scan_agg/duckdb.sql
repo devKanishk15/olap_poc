@@ -12,7 +12,7 @@ SELECT
     MAX(glusr_premium_added_date)                                         AS latest_listing,
     SUM(CASE WHEN glusr_premium_enable = '1' THEN 1 ELSE 0 END)          AS enabled_count
 FROM read_csv_auto(
-    's3://<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
+    's3://<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
     header = true,
     null_padding = true
 )

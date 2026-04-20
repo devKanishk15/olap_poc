@@ -15,7 +15,7 @@ WITH per_user_category AS (
         SUM(CASE WHEN pl_kwrd_term_upper LIKE '%PREMIUM%' THEN 1 ELSE 0 END)          AS premium_keyword_count,
         MAX(last_modified_date)                                                       AS last_update
     FROM read_csv_auto(
-        's3://<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
+        's3://<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
         header = true,
         null_padding = true
     )

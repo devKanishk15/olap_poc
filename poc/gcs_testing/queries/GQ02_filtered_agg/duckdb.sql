@@ -11,7 +11,7 @@ SELECT
     MIN(glusr_premium_added_date)          AS earliest_enabled,
     MAX(last_modified_date)                AS latest_modified
 FROM read_csv_auto(
-    's3://<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
+    's3://<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
     header = true,
     null_padding = true
 )

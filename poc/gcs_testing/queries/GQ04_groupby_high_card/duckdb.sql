@@ -11,7 +11,7 @@ SELECT
     SUM(CASE WHEN flag_premium_listing = '1' THEN 1 ELSE 0 END)          AS premium_count,
     MAX(last_modified_date)                                               AS last_activity
 FROM read_csv_auto(
-    's3://<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
+    's3://<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
     header = true,
     null_padding = true
 )

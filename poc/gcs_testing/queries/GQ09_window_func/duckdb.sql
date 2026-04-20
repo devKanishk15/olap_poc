@@ -12,7 +12,7 @@ WITH user_category_agg AS (
         COUNT(DISTINCT glusr_premium_mcat_id) AS mcat_count,
         MAX(last_modified_date)               AS last_update
     FROM read_csv_auto(
-        's3://<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
+        's3://<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
         header = true,
         null_padding = true
     )

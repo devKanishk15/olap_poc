@@ -11,7 +11,7 @@ SELECT
     COUNT(DISTINCT fk_glusr_usr_id)                  AS exact_distinct_users,
     APPROX_COUNT_DISTINCT(glusr_premium_mcat_id)     AS approx_distinct_mcats
 FROM read_csv_auto(
-    's3://<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
+    's3://<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
     header = true,
     null_padding = true
 )
