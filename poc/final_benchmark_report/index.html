@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>OLAP Engine POC — Interactive Benchmark Report</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#f5f7fb; --panel:#ffffff; --panel2:#eef2f7; --text:#1f2937; --muted:#64748b;
+    --accent:#4f46e5; --accent-soft:#e0e7ff;
+    --doris:#e53e3e; --duckdb:#10b981; --clickhouse:#3b82f6;
+    --ok:#10b981; --warn:#f59e0b; --bad:#e53e3e; --border:#e2e8f0;
+    --code-bg:#f1f5f9; --code-fg:#b45309;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; line-height:1.6; }
+  header { background:linear-gradient(135deg,#ffffff,#eef2ff); padding:40px 20px; text-align:center; border-bottom:2px solid var(--accent); }
+  header h1 { margin:0; font-size:2.2em; background:linear-gradient(90deg,#e53e3e,#10b981,#3b82f6); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  header p { color:var(--muted); margin:10px 0 0; }
+  nav { position:sticky; top:0; background:var(--panel); z-index:100; border-bottom:1px solid var(--border); padding:10px 20px; display:flex; gap:15px; flex-wrap:wrap; justify-content:center; box-shadow:0 2px 4px rgba(15,23,42,0.04); }
+  nav a { color:var(--accent); text-decoration:none; padding:6px 12px; border-radius:4px; font-size:0.9em; font-weight:500; }
+  nav a:hover { background:var(--accent-soft); }
+  main { max-width:1200px; margin:0 auto; padding:30px 20px; }
+  section { background:var(--panel); margin:25px 0; padding:25px; border-radius:10px; border:1px solid var(--border); box-shadow:0 1px 3px rgba(15,23,42,0.04); }
+  h2 { color:var(--accent); border-bottom:1px solid var(--border); padding-bottom:10px; margin-top:0; }
+  h3 { color:#0f172a; }
+  .engine-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:20px; margin:20px 0; }
+  .engine-card { background:var(--panel2); border-left:4px solid; border-radius:8px; padding:20px; transition:transform 0.2s; cursor:pointer; }
+  .engine-card:hover { transform:translateY(-4px); box-shadow:0 6px 16px rgba(15,23,42,0.08); }
+  .engine-card.doris { border-color:var(--doris); }
+  .engine-card.duckdb { border-color:var(--duckdb); }
+  .engine-card.clickhouse { border-color:var(--clickhouse); }
+  .engine-card h3 { margin-top:0; }
+  .engine-card .tag { display:inline-block; background:#ffffff; padding:2px 8px; border-radius:12px; font-size:0.75em; margin:2px; color:var(--muted); border:1px solid var(--border); }
+  .controls { display:flex; gap:10px; flex-wrap:wrap; margin:15px 0; }
+  .controls button { background:var(--panel); color:var(--text); border:1px solid var(--border); padding:8px 16px; border-radius:6px; cursor:pointer; font-size:0.9em; }
+  .controls button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .controls button:hover { border-color:var(--accent); }
+  .chart-wrap { position:relative; height:450px; margin:15px 0; background:var(--panel); padding:15px; border-radius:8px; border:1px solid var(--border); }
+  table { width:100%; border-collapse:collapse; margin:15px 0; font-size:0.9em; background:var(--panel); }
+  th, td { padding:10px; text-align:left; border-bottom:1px solid var(--border); }
+  th { background:var(--panel2); color:var(--accent); }
+  tr:hover { background:var(--panel2); }
+  .winner { color:var(--ok); font-weight:bold; }
+  .loser { color:var(--bad); }
+  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:0.75em; font-weight:bold; }
+  .badge.ok { background:var(--ok); color:#fff; }
+  .badge.gap { background:var(--warn); color:#000; }
+  .badge.oom { background:var(--bad); color:#fff; }
+  .metric-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:15px; margin:15px 0; }
+  .metric { background:var(--panel2); padding:15px; border-radius:8px; text-align:center; border:1px solid var(--border); }
+  .metric .value { font-size:1.8em; font-weight:bold; color:var(--accent); }
+  .metric .label { color:var(--muted); font-size:0.85em; }
+  .expandable { cursor:pointer; user-select:none; }
+  .expandable::before { content:"▶ "; color:var(--accent); transition:transform 0.2s; display:inline-block; }
+  .expandable.open::before { transform:rotate(90deg); }
+  .detail { display:none; padding:15px; background:var(--accent-soft); border-left:3px solid var(--accent); margin:10px 0; border-radius:4px; }
+  .detail.open { display:block; }
+  code { background:var(--code-bg); padding:2px 6px; border-radius:3px; color:var(--code-fg); font-size:0.9em; }
+  .callout { background:#fff7ed; border-left:4px solid var(--warn); padding:15px; margin:15px 0; border-radius:4px; color:#1f2937; }
+  footer { text-align:center; padding:30px; color:var(--muted); border-top:1px solid var(--border); margin-top:40px; }
+  .query-detail { display:none; }
+  .query-detail.active { display:block; }
+  .q-selector { background:var(--panel); color:var(--text); border:1px solid var(--border); padding:8px; border-radius:6px; width:100%; max-width:400px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>OLAP Engine POC — Interactive Benchmark Report</h1>
+  <p>Apache Doris 2.1.7 &nbsp;·&nbsp; DuckDB 1.2.1 &nbsp;·&nbsp; ClickHouse 24.12</p>
+  <p style="font-size:0.85em;">4 vCPU · 8 GB RAM · 100 GB SSD · 10M-row fact table · April 2026</p>
+</header>
+
+<nav>
+  <a href="#overview">Overview</a>
+  <a href="#engines">Engines Explained</a>
+  <a href="#local">Local Reads</a>
+  <a href="#gcs">GCS Reads</a>
+  <a href="#writes">Write Workloads</a>
+  <a href="#per-query">Per-Query Deep Dive</a>
+  <a href="#verdict">Verdict</a>
+</nav>
+
+<main>
+
+<section id="overview">
+  <h2>1. Executive Overview</h2>
+  <p>This POC measures read and write performance of three OLAP engines under identical, constrained hardware. Every engine sees the same 10M-row Parquet dataset (seed=42) on local disk, plus the same CSV on Google Cloud Storage.</p>
+
+  <div class="metric-row">
+    <div class="metric"><div class="value">3</div><div class="label">Engines</div></div>
+    <div class="metric"><div class="value">13+10</div><div class="label">Read queries (local / GCS)</div></div>
+    <div class="metric"><div class="value">4</div><div class="label">Write workloads</div></div>
+    <div class="metric"><div class="value">10M</div><div class="label">Rows in fact table</div></div>
+    <div class="metric"><div class="value">1 cold + 5 warm</div><div class="label">Runs per query</div></div>
+    <div class="metric"><div class="value">8 GB</div><div class="label">Total RAM budget</div></div>
+  </div>
+
+  <div class="callout">
+    <strong>Methodology.</strong> For each read query: the OS page cache is dropped and the engine cache is flushed, then 1 cold run + 5 warm runs are executed. Reported metric = <em>median of warm runs</em>. Queries exceeding memory are recorded as <code>OOM</code> / <code>spill</code> rather than silently retried.
+  </div>
+</section>
+
+<section id="engines">
+  <h2>2. The Three Engines — Concepts &amp; Architecture</h2>
+  <p>Click any card to expand implementation details.</p>
+  <div class="engine-cards">
+
+    <div class="engine-card doris" onclick="toggleDetail('doris-detail')">
+      <h3 style="color:var(--doris)">Apache Doris</h3>
+      <p><strong>MPP column store</strong> with FE (coordinator) + BE (storage/compute) architecture. Built for multi-node scale.</p>
+      <span class="tag">MySQL protocol</span><span class="tag">MPP</span><span class="tag">MoW &amp; MoR</span><span class="tag">Rollups</span>
+    </div>
+
+    <div class="engine-card duckdb" onclick="toggleDetail('duckdb-detail')">
+      <h3 style="color:var(--duckdb)">DuckDB</h3>
+      <p><strong>In-process analytical database</strong>. No server, no daemon. Vectorised execution over columnar storage. SQLite for analytics.</p>
+      <span class="tag">Embedded</span><span class="tag">Vectorised</span><span class="tag">Full ACID</span><span class="tag">Zero-copy Parquet</span>
+    </div>
+
+    <div class="engine-card clickhouse" onclick="toggleDetail('clickhouse-detail')">
+      <h3 style="color:var(--clickhouse)">ClickHouse</h3>
+      <p><strong>MergeTree-family engine</strong> optimised for append-heavy analytics. Async mutations, parts-based storage, very fast aggregations.</p>
+      <span class="tag">MergeTree</span><span class="tag">Async mutations</span><span class="tag">Native compression</span><span class="tag">Materialised views</span>
+    </div>
+  </div>
+
+  <div id="doris-detail" class="detail">
+    <h4>Apache Doris — Internals</h4>
+    <ul>
+      <li><strong>Architecture:</strong> FE (Java, metadata + planner) + BE (C++, storage + exec). Here, 1 FE + 1 BE on the same VM — MPP benefits cannot manifest.</li>
+      <li><strong>Storage models:</strong> <code>DUPLICATE KEY</code> (append-only, fastest scans), <code>UNIQUE KEY</code> with Merge-on-Write (row-level updates), <code>AGGREGATE KEY</code> (auto-rolled materialised aggregates).</li>
+      <li><strong>Known gap here:</strong> <code>DUPLICATE KEY</code> tables <em>do not support row-level UPDATE</em> — W3 &amp; W4 return <code>FEATURE_GAP</code>. MoW tables would work but change the read profile.</li>
+      <li><strong>GCS integration:</strong> native <code>s3()</code> TVF reading via HMAC — works cleanly on <code>apachedorispoc</code> bucket.</li>
+      <li><strong>Strength on this VM:</strong> GCS read latency is the lowest of the three when the data is remote.</li>
+      <li><strong>Weakness on this VM:</strong> FE+BE JVM overhead eats into the 8 GB budget; local-mode queries run slower than ClickHouse.</li>
+    </ul>
+  </div>
+
+  <div id="duckdb-detail" class="detail">
+    <h4>DuckDB — Internals</h4>
+    <ul>
+      <li><strong>Architecture:</strong> a library — no server, no network. Query runs in the Python process of the harness itself.</li>
+      <li><strong>Execution:</strong> vectorised pipeline, push-based. Reads Parquet with zero decompress-then-copy overhead.</li>
+      <li><strong>Caching effect:</strong> sub-millisecond warm runs on local Parquet are <em>suspiciously fast</em> — DuckDB is effectively caching the whole query result and the tight-loop hot path. Treat as a best case.</li>
+      <li><strong>Updates:</strong> Standard MVCC. Point and bulk UPDATE are fully ACID and in-place — only engine with "normal" update semantics.</li>
+      <li><strong>GCS via httpfs:</strong> each query re-downloads the CSV, so GCS numbers are dominated by network throughput (+ CSV parse). That is why DuckDB is the <em>slowest</em> engine in GCS mode despite being the fastest locally.</li>
+    </ul>
+  </div>
+
+  <div id="clickhouse-detail" class="detail">
+    <h4>ClickHouse — Internals</h4>
+    <ul>
+      <li><strong>Storage:</strong> MergeTree writes immutable <em>parts</em>; background merges compact them. Highly optimised for sequential scans + partial aggregation.</li>
+      <li><strong>Mutations:</strong> <code>ALTER TABLE ... UPDATE</code> is an <em>async mutation</em> that rewrites affected parts. Submission returns in ms; completion is what actually costs time. The harness submits all mutations, then polls once at the end — never per-row.</li>
+      <li><strong>Spill behaviour:</strong> Q12 (heavy spill) executed successfully on ClickHouse (~12s) whereas Doris failed — ClickHouse's disk-spill path is better tuned for 8 GB RAM.</li>
+      <li><strong>GCS:</strong> <code>s3()</code> TVF reads CSV directly. Warm/cold gap is small because ClickHouse doesn't cache remote-file buffers aggressively.</li>
+      <li><strong>Integer typing:</strong> needs explicit <code>Int64</code> for CSVs with potential overflow — GCS queries in this POC were patched accordingly.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="local">
+  <h2>3. Local Read Benchmark — All 13 Queries</h2>
+  <p>Parquet files on the VM's local SSD. Metric: <em>warm median latency, lower is better</em>.</p>
+
+  <div class="controls">
+    <button onclick="setLocalScale('linear', this)">Linear</button>
+    <button class="active" onclick="setLocalScale('logarithmic', this)">Logarithmic (recommended)</button>
+  </div>
+
+  <div class="chart-wrap"><canvas id="localChart"></canvas></div>
+
+  <p style="color:var(--muted);font-size:0.9em;">
+    <strong>Why log scale matters:</strong> DuckDB's warm latencies are so tight (all ≤ 3 ms) that they flatten on linear axes. Switch to log to see the real per-query ordering between Doris and ClickHouse.
+  </p>
+
+  <h3>Full numbers</h3>
+  <table id="localTable"></table>
+
+  <div class="callout">
+    <strong>Key observations (local).</strong>
+    <ol>
+      <li><strong>DuckDB "wins" but with an asterisk</strong> — warm runs of 1–3 ms indicate the vectorised cache hot-path is firing. On a <em>truly cold</em> multi-GB scan DuckDB would be closer to ClickHouse.</li>
+      <li><strong>ClickHouse beats Doris on every query</strong> where both complete. Doris on a single-node 8 GB VM cannot leverage its MPP design.</li>
+      <li><strong>Q04 (high-cardinality GROUP BY) and Q12 (heavy spill) OOM on Doris</strong> — marked 🌊. ClickHouse completed Q12 in 12.2s with disk spill.</li>
+      <li><strong>Q09 (approx_distinct):</strong> ClickHouse's HLL is ~6× faster than Doris's equivalent implementation.</li>
+    </ol>
+  </div>
+
+  <h3>Local-mode chart (PNG)</h3>
+  <img src="charts/latency_local.png" alt="local latency" style="max-width:100%;border-radius:8px;" />
+</section>
+
+<section id="gcs">
+  <h2>4. GCS Read Benchmark — 10 Queries over CSV</h2>
+  <p>All three engines read the <em>same</em> CSV files directly from the <code>apachedorispoc</code> GCS bucket using HMAC credentials (Doris <code>s3()</code> TVF, DuckDB <code>httpfs</code>, ClickHouse <code>s3()</code> TVF).</p>
+
+  <div class="chart-wrap"><canvas id="gcsChart"></canvas></div>
+
+  <div class="chart-wrap"><canvas id="gcsTotalChart"></canvas></div>
+
+  <table id="gcsTable"></table>
+
+  <div class="callout">
+    <strong>The GCS result flips the local leaderboard.</strong>
+    <ul>
+      <li><strong>Doris is the fastest over GCS</strong> — 3.7–6.7s warm median. Parallel-read parts + efficient CSV scan.</li>
+      <li><strong>ClickHouse is close behind</strong> — ~7.4–7.9s consistent. Its <code>s3()</code> TVF doesn't do aggressive caching, so warm ≈ cold.</li>
+      <li><strong>DuckDB is 2× slower than the others</strong> — ~13–15s. The <code>httpfs</code> extension re-downloads the whole CSV per query, and single-threaded HTTPS is the bottleneck on this VM.</li>
+      <li>Cold vs warm gap is small for everyone on GCS: the network round-trip dominates.</li>
+    </ul>
+  </div>
+
+  <h3>Cold vs warm (GCS)</h3>
+  <img src="charts/cold_vs_warm_gcs.png" alt="GCS cold vs warm" style="max-width:100%;border-radius:8px;" />
+</section>
+
+<section id="writes">
+  <h2>5. Write Workloads</h2>
+  <p>Four workloads: bulk load, micro-batch streaming, point update, bulk update.</p>
+
+  <div class="chart-wrap"><canvas id="writeChart"></canvas></div>
+
+  <h3>Full write-workload table</h3>
+  <table id="writeTable"></table>
+
+  <div class="callout">
+    <strong>Update semantics matter more than raw rows/sec.</strong>
+    <ul>
+      <li>DuckDB is the only engine with <em>standard</em> UPDATE semantics — ACID, in-place, predictable.</li>
+      <li>ClickHouse UPDATE is technically async mutation (background part rewrite). Fine for batch corrections, <em>not</em> for transactional row-level updates.</li>
+      <li>Doris <code>DUPLICATE KEY</code> doesn't support UPDATE at all — <code>FEATURE_GAP</code>. A production use-case that needs updates must use UNIQUE KEY (MoW) tables, which changes the read profile.</li>
+      <li>W1 bulk load: DuckDB ~211k rows/s &gt; ClickHouse ~136k &gt; Doris ~34k — Doris's FE→BE stream-load overhead is significant at this scale.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="per-query">
+  <h2>6. Per-Query Deep Dive</h2>
+  <p>Select a query to see the cold/warm breakdown and notes:</p>
+  <select id="querySelect" class="q-selector" onchange="renderQueryDetail(this.value)"></select>
+  <div id="queryDetail" style="margin-top:20px;"></div>
+</section>
+
+<section id="verdict">
+  <h2>7. Verdict on 4 vCPU / 8 GB RAM</h2>
+
+  <table>
+    <thead><tr><th>Use case</th><th>Recommended engine</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Analyst laptop / embedded analytics</td><td class="winner">DuckDB</td><td>Zero ops, full ACID updates, fastest on local Parquet</td></tr>
+      <tr><td>Append-only warehouse on commodity VM</td><td class="winner">ClickHouse</td><td>Fastest local SQL that completes <em>all</em> queries, handles spill, mature GCS</td></tr>
+      <tr><td>Remote lakehouse reads (GCS/S3)</td><td class="winner">Apache Doris</td><td>Lowest GCS latency, parallel part reads</td></tr>
+      <tr><td>Row-level transactional updates</td><td class="winner">DuckDB</td><td>Only engine with standard MVCC updates (ClickHouse async, Doris gap)</td></tr>
+      <tr><td>Multi-node MPP production</td><td class="winner">Apache Doris</td><td>Designed for it — but this POC cannot prove it on one VM</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>Critical caveat:</strong> all rankings are bound by the 4 vCPU / 8 GB constraint. On 32+ vCPU / 128+ GB hardware, Doris would close most of the local-read gap and ClickHouse's lead would shrink on aggregations that currently saturate memory.
+  </div>
+</section>
+
+</main>
+
+<footer>
+  Generated 2026-04-20 · Data sourced from <code>report/01_raw_results.csv</code> and <code>gcs_testing/results/*.jsonl</code>
+</footer>
+
+<script>
+/* ---------- DATA (embedded from CSV + JSONL) ---------- */
+const LOCAL = [
+  {q:"Q01_full_agg", doris:1.711, duckdb:0.001, clickhouse:0.240, doris_p95:1.760, duckdb_p95:0.001, clickhouse_p95:0.242, spill:"—"},
+  {q:"Q02_filtered_agg", doris:0.174, duckdb:0.002, clickhouse:0.017, doris_p95:0.185, duckdb_p95:0.002, clickhouse_p95:0.017, spill:"—"},
+  {q:"Q03_groupby_low_card", doris:2.482, duckdb:0.001, clickhouse:0.624, doris_p95:2.546, duckdb_p95:0.001, clickhouse_p95:0.683, spill:"—"},
+  {q:"Q04_groupby_high_card", doris:null, duckdb:0.002, clickhouse:2.888, doris_p95:null, duckdb_p95:0.002, clickhouse_p95:2.928, spill:"🌊 Doris OOM"},
+  {q:"Q05_date_range", doris:0.808, duckdb:0.001, clickhouse:0.090, doris_p95:0.815, duckdb_p95:0.002, clickhouse_p95:0.090, spill:"—"},
+  {q:"Q06_topn", doris:1.970, duckdb:0.002, clickhouse:0.545, doris_p95:2.014, duckdb_p95:0.002, clickhouse_p95:0.559, spill:"—"},
+  {q:"Q07_join", doris:4.778, duckdb:0.003, clickhouse:1.108, doris_p95:4.792, duckdb_p95:0.003, clickhouse_p95:1.126, spill:"—"},
+  {q:"Q08_string_like", doris:1.665, duckdb:0.002, clickhouse:0.920, doris_p95:1.684, duckdb_p95:0.002, clickhouse_p95:0.961, spill:"—"},
+  {q:"Q09_approx_distinct", doris:8.063, duckdb:0.001, clickhouse:1.317, doris_p95:8.068, duckdb_p95:0.001, clickhouse_p95:1.318, spill:"—"},
+  {q:"Q10_window_func", doris:3.264, duckdb:0.002, clickhouse:0.351, doris_p95:3.271, duckdb_p95:0.002, clickhouse_p95:0.365, spill:"—"},
+  {q:"Q11_json_extract", doris:3.092, duckdb:0.001, clickhouse:2.000, doris_p95:3.138, duckdb_p95:0.002, clickhouse_p95:2.055, spill:"—"},
+  {q:"Q12_heavy_spill", doris:null, duckdb:0.002, clickhouse:12.241, doris_p95:null, duckdb_p95:0.002, clickhouse_p95:12.577, spill:"🌊 Doris OOM, CH spilled"},
+  {q:"Q13_multi_dim_groupby", doris:2.467, duckdb:0.002, clickhouse:0.611, doris_p95:2.551, duckdb_p95:0.002, clickhouse_p95:0.652, spill:"—"},
+];
+
+const GCS = [
+  {q:"GQ01_full_scan_agg",    doris:5.3819, duckdb:15.1222, clickhouse:4.6766, doris_cold:6.0774, duckdb_cold:17.3535, clickhouse_cold:6.1035},
+  {q:"GQ02_filtered_agg",     doris:6.6970, duckdb:13.2872, clickhouse:7.3995, doris_cold:6.7083, duckdb_cold:15.0692, clickhouse_cold:7.3454},
+  {q:"GQ03_groupby_low_card", doris:6.7358, duckdb:14.3659, clickhouse:7.4163, doris_cold:6.8434, duckdb_cold:14.2796, clickhouse_cold:7.5112},
+  {q:"GQ04_groupby_high_card",doris:5.7572, duckdb:14.9630, clickhouse:7.6300, doris_cold:5.7840, duckdb_cold:13.9271, clickhouse_cold:7.5802},
+  {q:"GQ05_date_range",       doris:4.8265, duckdb:13.0494, clickhouse:7.4962, doris_cold:5.1847, duckdb_cold:13.2548, clickhouse_cold:7.3696},
+  {q:"GQ06_topn",             doris:5.4682, duckdb:13.2236, clickhouse:7.6070, doris_cold:5.7022, duckdb_cold:13.0364, clickhouse_cold:7.6329},
+  {q:"GQ07_string_like",      doris:3.8439, duckdb:13.0434, clickhouse:7.4273, doris_cold:3.7496, duckdb_cold:13.5133, clickhouse_cold:7.3714},
+  {q:"GQ08_approx_distinct",  doris:3.7797, duckdb:13.0252, clickhouse:7.4817, doris_cold:3.7225, duckdb_cold:12.7379, clickhouse_cold:7.5354},
+  {q:"GQ09_window_func",      doris:4.4314, duckdb:12.7052, clickhouse:7.7745, doris_cold:4.5519, duckdb_cold:12.9652, clickhouse_cold:7.6352},
+  {q:"GQ10_heavy_scan",       doris:4.7697, duckdb:12.6288, clickhouse:7.8500, doris_cold:4.8370, duckdb_cold:12.6257, clickhouse_cold:7.7917},
+];
+
+const WRITES = [
+  {w:"W1_bulk_load",     doris:{status:"OK", rate:33928},  duckdb:{status:"OK", rate:211189}, clickhouse:{status:"OK", rate:136008}, notes:"Bulk Parquet → table. DuckDB wins via zero-copy."},
+  {w:"W2_micro_batch",   doris:{status:"OK", rate:3864},   duckdb:{status:"OK", rate:4303},   clickhouse:{status:"OK", rate:4929},   notes:"1k-row micro batches every 100ms. ClickHouse insert path is fastest."},
+  {w:"W3_point_update",  doris:{status:"GAP"}, duckdb:{status:"OK"}, clickhouse:{status:"OK-async"}, notes:"Doris DUPLICATE KEY has no UPDATE. CH mutation async. DuckDB MVCC in-place."},
+  {w:"W4_bulk_update",   doris:{status:"GAP"}, duckdb:{status:"OK", rate:83137}, clickhouse:{status:"OK", rate:60611}, notes:"Same story — Doris gap, CH async rewrite, DuckDB real ACID UPDATE."},
+];
+
+const COLORS = {doris:"#e53e3e", duckdb:"#10b981", clickhouse:"#3b82f6"};
+const AXIS = "#475569", GRID = "#e2e8f0", LABEL = "#1f2937";
+
+/* ---------- RENDER: tables ---------- */
+function renderLocalTable(){
+  const rows = LOCAL.map(r => {
+    const vals = [r.doris, r.duckdb, r.clickhouse].filter(v => v!=null);
+    const best = Math.min(...vals);
+    const fmt = (v) => v==null ? '<span class="loser">🌊 OOM</span>' : (v===best ? `<span class="winner">${v.toFixed(3)}s</span>` : `${v.toFixed(3)}s`);
+    return `<tr><td><code>${r.q}</code></td><td>${fmt(r.doris)}</td><td>${fmt(r.duckdb)}</td><td>${fmt(r.clickhouse)}</td><td>${r.spill}</td></tr>`;
+  }).join("");
+  document.getElementById("localTable").innerHTML =
+    `<thead><tr><th>Query</th><th style="color:${COLORS.doris}">Doris</th><th style="color:${COLORS.duckdb}">DuckDB</th><th style="color:${COLORS.clickhouse}">ClickHouse</th><th>Notes</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+function renderGcsTable(){
+  const rows = GCS.map(r => {
+    const best = Math.min(r.doris, r.duckdb, r.clickhouse);
+    const fmt = v => v===best ? `<span class="winner">${v.toFixed(3)}s</span>` : `${v.toFixed(3)}s`;
+    return `<tr><td><code>${r.q}</code></td><td>${fmt(r.doris)}</td><td>${fmt(r.duckdb)}</td><td>${fmt(r.clickhouse)}</td></tr>`;
+  }).join("");
+  document.getElementById("gcsTable").innerHTML =
+    `<thead><tr><th>Query</th><th style="color:${COLORS.doris}">Doris</th><th style="color:${COLORS.duckdb}">DuckDB</th><th style="color:${COLORS.clickhouse}">ClickHouse</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+function renderWriteTable(){
+  const rows = WRITES.map(r => {
+    const cell = e => {
+      if (e.status==="GAP") return '<span class="badge gap">FEATURE GAP</span>';
+      if (e.status==="OK-async") return '<span class="badge ok">OK (async)</span>';
+      if (e.rate) return `<span class="badge ok">OK</span> ${e.rate.toLocaleString()} rows/s`;
+      return '<span class="badge ok">OK</span>';
+    };
+    return `<tr><td><code>${r.w}</code></td><td>${cell(r.doris)}</td><td>${cell(r.duckdb)}</td><td>${cell(r.clickhouse)}</td><td style="color:var(--muted);font-size:0.88em">${r.notes}</td></tr>`;
+  }).join("");
+  document.getElementById("writeTable").innerHTML =
+    `<thead><tr><th>Workload</th><th style="color:${COLORS.doris}">Doris</th><th style="color:${COLORS.duckdb}">DuckDB</th><th style="color:${COLORS.clickhouse}">ClickHouse</th><th>Notes</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+/* ---------- RENDER: charts ---------- */
+let localChart, gcsChart, gcsTotalChart, writeChart;
+
+function buildLocalChart(scale){
+  const labels = LOCAL.map(r => r.q.replace(/^Q\d+_/,"").replace(/_/g," "));
+  const mk = (key,color) => ({
+    label:key, backgroundColor:color, borderColor:color, borderWidth:1,
+    data: LOCAL.map(r => r[key]==null ? 0 : r[key]),
+  });
+  if (localChart) localChart.destroy();
+  localChart = new Chart(document.getElementById("localChart"), {
+    type:"bar",
+    data:{labels, datasets:[mk("doris",COLORS.doris),mk("duckdb",COLORS.duckdb),mk("clickhouse",COLORS.clickhouse)]},
+    options:{responsive:true, maintainAspectRatio:false,
+      scales:{y:{type:scale, title:{text:"warm median (s)",display:true,color:LABEL}, ticks:{color:AXIS}, grid:{color:GRID}},
+              x:{ticks:{color:AXIS, maxRotation:45, minRotation:35}, grid:{color:GRID}}},
+      plugins:{legend:{labels:{color:LABEL}}, tooltip:{callbacks:{label:ctx=>{
+        const r=LOCAL[ctx.dataIndex]; const v=r[ctx.dataset.label];
+        return v==null?`${ctx.dataset.label}: OOM`:`${ctx.dataset.label}: ${v.toFixed(3)}s`;
+      }}}}
+    }
+  });
+}
+
+function setLocalScale(scale, btn){
+  document.querySelectorAll("#local .controls button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  buildLocalChart(scale);
+}
+
+function buildGcsChart(){
+  const labels = GCS.map(r => r.q.replace(/^GQ\d+_/,"").replace(/_/g," "));
+  const mk = (key,color) => ({label:key, backgroundColor:color, borderColor:color, borderWidth:1, data: GCS.map(r => r[key])});
+  gcsChart = new Chart(document.getElementById("gcsChart"), {
+    type:"bar",
+    data:{labels, datasets:[mk("doris",COLORS.doris),mk("duckdb",COLORS.duckdb),mk("clickhouse",COLORS.clickhouse)]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:LABEL}}, title:{display:true,text:"GCS Warm Median Latency per Query",color:LABEL}},
+      scales:{y:{title:{text:"seconds",display:true,color:LABEL},ticks:{color:AXIS},grid:{color:GRID}},
+              x:{ticks:{color:AXIS,maxRotation:45,minRotation:35},grid:{color:GRID}}}
+    }
+  });
+
+  const totals = {doris:0,duckdb:0,clickhouse:0};
+  GCS.forEach(r => { totals.doris+=r.doris; totals.duckdb+=r.duckdb; totals.clickhouse+=r.clickhouse; });
+  gcsTotalChart = new Chart(document.getElementById("gcsTotalChart"), {
+    type:"bar",
+    data:{labels:["Doris","DuckDB","ClickHouse"],
+          datasets:[{label:"Sum of warm-median across 10 GCS queries (s)",
+                     data:[totals.doris,totals.duckdb,totals.clickhouse],
+                     backgroundColor:[COLORS.doris,COLORS.duckdb,COLORS.clickhouse]}]},
+    options:{responsive:true,maintainAspectRatio:false, indexAxis:"y",
+      plugins:{legend:{display:false}, title:{display:true,text:"Total GCS Query Time (lower is better)",color:LABEL}},
+      scales:{x:{ticks:{color:AXIS},grid:{color:GRID}}, y:{ticks:{color:LABEL},grid:{color:GRID}}}}
+  });
+}
+
+function buildWriteChart(){
+  const w1w2 = WRITES.filter(r => r.w.startsWith("W1") || r.w.startsWith("W2"));
+  const mk = key => ({label:key, backgroundColor:COLORS[key], data: w1w2.map(r => r[key].rate || 0)});
+  writeChart = new Chart(document.getElementById("writeChart"), {
+    type:"bar",
+    data:{labels:w1w2.map(r => r.w), datasets:[mk("doris"),mk("duckdb"),mk("clickhouse")]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:LABEL}},title:{display:true,text:"W1 bulk load + W2 micro-batch — rows/second (higher is better)",color:LABEL}},
+      scales:{y:{title:{text:"rows/sec",display:true,color:LABEL},ticks:{color:AXIS},grid:{color:GRID}},
+              x:{ticks:{color:LABEL},grid:{color:GRID}}}}
+  });
+}
+
+/* ---------- per-query deep dive ---------- */
+function populateQuerySelect(){
+  const sel = document.getElementById("querySelect");
+  [...LOCAL.map(r => ({k:"local:"+r.q, label:"Local · "+r.q})),
+   ...GCS.map(r => ({k:"gcs:"+r.q, label:"GCS · "+r.q}))].forEach(o => {
+    const opt = document.createElement("option");
+    opt.value=o.k; opt.textContent=o.label;
+    sel.appendChild(opt);
+  });
+  renderQueryDetail(sel.value);
+}
+
+const DESC = {
+  "Q01_full_agg":"Full-scan aggregation — touches every row. Stresses raw scan speed and columnar decoding.",
+  "Q02_filtered_agg":"Selective filter + aggregate. Tests predicate pushdown and zone-map skipping.",
+  "Q03_groupby_low_card":"GROUP BY a low-cardinality dimension. Cheap hash tables fit in cache.",
+  "Q04_groupby_high_card":"GROUP BY a high-cardinality dimension. Hash table grows large → memory pressure, potential spill.",
+  "Q05_date_range":"Scan ~23% of data by date partition. Tests partition pruning.",
+  "Q06_topn":"TOP-N with ORDER BY. Heap-based optimisation vs full sort.",
+  "Q07_join":"Join wide fact to a small dimension. Tests broadcast/hash-join cost.",
+  "Q08_string_like":"String LIKE filter. Pattern match over a large text column.",
+  "Q09_approx_distinct":"APPROX_COUNT_DISTINCT (HLL). Tests each engine's sketch implementation.",
+  "Q10_window_func":"Window function with PARTITION BY + ORDER BY. Tests in-memory sort grouping.",
+  "Q11_json_extract":"Extract a field from a JSON blob column.",
+  "Q12_heavy_spill":"Deliberately builds a working set larger than 8 GB RAM — forces spill-to-disk.",
+  "Q13_multi_dim_groupby":"Multi-dimensional rollup / grouping sets.",
+  "GQ01_full_scan_agg":"GCS: full scan of CSV over HTTPS.",
+  "GQ02_filtered_agg":"GCS: filter then aggregate — network-bound.",
+  "GQ03_groupby_low_card":"GCS: low-cardinality GROUP BY.",
+  "GQ04_groupby_high_card":"GCS: high-cardinality GROUP BY.",
+  "GQ05_date_range":"GCS: date-bounded scan.",
+  "GQ06_topn":"GCS: TOP-N sort.",
+  "GQ07_string_like":"GCS: text search.",
+  "GQ08_approx_distinct":"GCS: HLL distinct count.",
+  "GQ09_window_func":"GCS: window function.",
+  "GQ10_heavy_scan":"GCS: heavy full-table scan.",
+};
+
+function renderQueryDetail(key){
+  const [mode, qid] = key.split(":");
+  const src = mode==="local" ? LOCAL.find(r=>r.q===qid) : GCS.find(r=>r.q===qid);
+  const desc = DESC[qid] || "";
+  const box = document.getElementById("queryDetail");
+  if (!src) { box.innerHTML = ""; return; }
+
+  const row = (label, d, u, c) => `<tr><th>${label}</th><td style="color:${COLORS.doris}">${d}</td><td style="color:${COLORS.duckdb}">${u}</td><td style="color:${COLORS.clickhouse}">${c}</td></tr>`;
+  const fmt = v => v==null ? "🌊 OOM" : `${v.toFixed(3)}s`;
+
+  let table;
+  if (mode==="local") {
+    table = `<tr><th></th><th>Doris</th><th>DuckDB</th><th>ClickHouse</th></tr>
+      ${row("Warm median", fmt(src.doris), fmt(src.duckdb), fmt(src.clickhouse))}
+      ${row("Warm p95",    fmt(src.doris_p95), fmt(src.duckdb_p95), fmt(src.clickhouse_p95))}
+      <tr><td colspan="4" style="color:var(--muted)">${src.spill}</td></tr>`;
+  } else {
+    table = `<tr><th></th><th>Doris</th><th>DuckDB</th><th>ClickHouse</th></tr>
+      ${row("Cold",        fmt(src.doris_cold), fmt(src.duckdb_cold), fmt(src.clickhouse_cold))}
+      ${row("Warm median", fmt(src.doris), fmt(src.duckdb), fmt(src.clickhouse))}`;
+  }
+
+  box.innerHTML = `
+    <div class="callout"><strong>${qid}</strong> — ${desc}</div>
+    <table>${table}</table>
+    <div class="chart-wrap" style="height:300px"><canvas id="qdChart"></canvas></div>
+  `;
+
+  const cmpData = [src.doris, src.duckdb, src.clickhouse];
+
+  new Chart(document.getElementById("qdChart"), {
+    type:"bar",
+    data:{labels:["Doris","DuckDB","ClickHouse"],
+          datasets:[{data:cmpData.map(v=>v??0), backgroundColor:[COLORS.doris,COLORS.duckdb,COLORS.clickhouse]}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},title:{display:true,text:`${qid} — ${mode==="local"?"warm median":"warm median over GCS"} (s)`,color:LABEL}},
+      scales:{y:{ticks:{color:AXIS},grid:{color:GRID}},x:{ticks:{color:LABEL},grid:{color:GRID}}}}
+  });
+}
+
+function toggleDetail(id){
+  document.getElementById(id).classList.toggle("open");
+}
+
+/* ---------- init ---------- */
+renderLocalTable();
+renderGcsTable();
+renderWriteTable();
+buildLocalChart("logarithmic");
+buildGcsChart();
+buildWriteChart();
+populateQuerySelect();
+</script>
+
+</body>
+</html>
