@@ -257,15 +257,23 @@ def insert_trino(rows: list[dict], env: dict) -> float:
         return "'" + str(v).replace("'", "''") + "'"
 
     cols = list(rows[0].keys())
-    value_rows = ", ".join(
-        "(" + ", ".join(_lit(r[c]) for c in cols) + ")"
-        for r in rows
-    )
-    sql = f"INSERT INTO poc.event_fact_w2_staging ({', '.join(cols)}) VALUES {value_rows}"
+    col_list = ", ".join(cols)
+
+    # Trino caps query text at 1 MB (query.max-length). A 10k-row VALUES
+    # clause across ~60 columns runs ~6 MB, so split the batch into sub-chunks
+    # of SUB_CHUNK rows each and issue one INSERT per chunk. The batch
+    # latency reported to the harness is the sum of the sub-chunk inserts.
+    SUB_CHUNK = 1000
 
     t0 = time.perf_counter()
-    cur.execute(sql)
-    cur.fetchall()
+    for start in range(0, len(rows), SUB_CHUNK):
+        chunk = rows[start:start + SUB_CHUNK]
+        value_rows = ", ".join(
+            "(" + ", ".join(_lit(r[c]) for c in cols) + ")"
+            for r in chunk
+        )
+        cur.execute(f"INSERT INTO poc.event_fact_w2_staging ({col_list}) VALUES {value_rows}")
+        cur.fetchall()
     elapsed = time.perf_counter() - t0
 
     conn.close()
