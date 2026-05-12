@@ -64,8 +64,10 @@ sed \
   "${TEMPLATE_DIR}/catalog/gcs_hive.properties" \
   > "${ETC_DIR}/catalog/gcs_hive.properties"
 
-# Protect the catalog file (contains HMAC secret)
+# Protect the catalog file (contains HMAC secret); chown so uid 1000 (trino)
+# can read it inside the container.
 chmod 600 "${ETC_DIR}/catalog/gcs_hive.properties"
+chown 1000:1000 "${ETC_DIR}/catalog/gcs_hive.properties"
 
 echo "  Config files written to ${ETC_DIR}"
 
