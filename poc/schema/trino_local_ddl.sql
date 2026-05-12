@@ -69,7 +69,7 @@ CREATE TABLE poc.event_fact (
     tag_list                VARCHAR,
     custom_dimensions       VARCHAR,
     raw_payload_size_bytes  INTEGER,
-    ingestion_ts            TIMESTAMP(3) ,
+    ingestion_ts            TIMESTAMP(6),
     processing_lag_ms       INTEGER,
     data_version            TINYINT,
     partition_key           INTEGER,
