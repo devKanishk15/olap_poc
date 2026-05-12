@@ -217,7 +217,62 @@ def insert_clickhouse(rows: list[dict], env: dict) -> float:
     return elapsed
 
 
-INSERTERS = {"doris": insert_doris, "duckdb": insert_duckdb, "clickhouse": insert_clickhouse}
+def insert_trino(rows: list[dict], env: dict) -> float:
+    """Insert a batch via Trino JDBC into a staging managed table.
+
+    Trino's Hive connector does not support INSERT INTO external Parquet tables.
+    We insert into a pre-created managed ORC table (poc.event_fact_w2_staging).
+    If the staging table doesn't exist, it is created on the first batch.
+    """
+    import trino as trino_lib
+
+    host = env.get("TRINO_HOST", "127.0.0.1")
+    port = int(env.get("TRINO_PORT", "8080"))
+    user = env.get("TRINO_USER", "trino")
+
+    conn = trino_lib.dbapi.connect(
+        host=host, port=port, user=user,
+        http_scheme="http",
+        catalog="local_hive",
+        schema="poc",
+    )
+    cur = conn.cursor()
+
+    # Create staging table on first call (idempotent)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS poc.event_fact_w2_staging
+        WITH (format = 'ORC')
+        AS SELECT * FROM poc.event_fact WHERE 1 = 0
+    """)
+    cur.fetchall()
+
+    # Build VALUES clause (parameterised literals)
+    def _lit(v):
+        if v is None:
+            return "NULL"
+        if isinstance(v, bool):
+            return "true" if v else "false"
+        if isinstance(v, (int, float)):
+            return str(v)
+        return "'" + str(v).replace("'", "''") + "'"
+
+    cols = list(rows[0].keys())
+    value_rows = ", ".join(
+        "(" + ", ".join(_lit(r[c]) for c in cols) + ")"
+        for r in rows
+    )
+    sql = f"INSERT INTO poc.event_fact_w2_staging ({', '.join(cols)}) VALUES {value_rows}"
+
+    t0 = time.perf_counter()
+    cur.execute(sql)
+    cur.fetchall()
+    elapsed = time.perf_counter() - t0
+
+    conn.close()
+    return elapsed
+
+
+INSERTERS = {"doris": insert_doris, "duckdb": insert_duckdb, "clickhouse": insert_clickhouse, "trino": insert_trino}
 
 
 def main():

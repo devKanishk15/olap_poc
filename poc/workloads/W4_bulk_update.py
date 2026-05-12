@@ -198,10 +198,30 @@ def bulk_update_clickhouse(env: dict) -> dict:
     }
 
 
+def bulk_update_trino(env: dict) -> dict:
+    """Trino bulk UPDATE — FEATURE_GAP for external Hive Parquet tables.
+
+    Same constraint as W3: Hive connector external tables are immutable.
+    Document the gap with upgrade path to Iceberg connector.
+    """
+    return {
+        "status": "FEATURE_GAP",
+        "rows_affected": 0,
+        "semantic_note": (
+            "Trino Hive connector does not support UPDATE/DELETE on external Parquet tables. "
+            "Bulk UPDATE requires Iceberg connector (merge-on-read, ACID) or "
+            "INSERT OVERWRITE via partition replacement (write a new partition with "
+            "modified rows, then drop the old one). "
+            "For this POC, the read-query benchmark (Q01–Q14) is the relevant comparison axis."
+        ),
+    }
+
+
 UPDATERS = {
     "doris":      bulk_update_doris,
     "duckdb":     bulk_update_duckdb,
     "clickhouse": bulk_update_clickhouse,
+    "trino":      bulk_update_trino,
 }
 
 

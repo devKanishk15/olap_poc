@@ -183,10 +183,66 @@ def bulk_load_clickhouse(env: dict) -> dict:
     }
 
 
+def bulk_load_trino(env: dict) -> dict:
+    """Measure Trino ingestion throughput via CREATE TABLE AS SELECT from external Parquet.
+
+    Trino's external Hive table already points to local Parquet — no stream-load needed.
+    This workload creates a managed (internal ORC) table via CTAS to measure the
+    read-from-external-Parquet → write-to-managed-storage throughput, then drops it.
+    """
+    import trino as trino_lib
+
+    host    = env.get("TRINO_HOST", "127.0.0.1")
+    port    = int(env.get("TRINO_PORT", "8080"))
+    user    = env.get("TRINO_USER", "trino")
+
+    conn = trino_lib.dbapi.connect(
+        host=host, port=port, user=user,
+        http_scheme="http",
+        catalog="local_hive",
+        schema="poc",
+    )
+    cur = conn.cursor()
+
+    # Drop any leftover from a previous run
+    cur.execute("DROP TABLE IF EXISTS poc.event_fact_w1_ctas")
+    cur.fetchall()
+
+    t_start = time.perf_counter()
+    cur.execute("""
+        CREATE TABLE poc.event_fact_w1_ctas
+        WITH (format = 'ORC')
+        AS SELECT * FROM poc.event_fact
+    """)
+    cur.fetchall()
+    elapsed = time.perf_counter() - t_start
+
+    cur.execute("SELECT COUNT(*) FROM poc.event_fact_w1_ctas")
+    row_count = cur.fetchone()[0]
+
+    # Clean up managed table (external source is untouched)
+    cur.execute("DROP TABLE IF EXISTS poc.event_fact_w1_ctas")
+    cur.fetchall()
+
+    conn.close()
+    return {
+        "status":        "OK",
+        "rows_loaded":   row_count,
+        "elapsed_s":     round(elapsed, 3),
+        "rows_per_s":    round(row_count / elapsed) if elapsed > 0 else 0,
+        "semantic_note": (
+            "Trino W1 measures CTAS throughput (external Parquet → managed ORC). "
+            "External table is pre-registered via make schema-trino-local — no "
+            "stream-load step is needed or applicable."
+        ),
+    }
+
+
 LOADERS = {
     "doris":      bulk_load_doris,
     "duckdb":     bulk_load_duckdb,
     "clickhouse": bulk_load_clickhouse,
+    "trino":      bulk_load_trino,
 }
 
 

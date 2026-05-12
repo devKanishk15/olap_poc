@@ -13,11 +13,13 @@ ENV_FILE    := /opt1/olap_poc/poc/.env
 RESULTS_DIR := /opt1/poc/results
 REPORT_DIR  := /opt1/poc/report
 
-.PHONY: help prep data install-doris install-duckdb install-clickhouse \
+.PHONY: help prep data install-doris install-duckdb install-clickhouse install-trino \
+        schema-trino-local schema-trino-gcs \
         bench-doris-local bench-doris-gcs \
         bench-duckdb-local bench-duckdb-gcs \
         bench-clickhouse-local bench-clickhouse-gcs \
-        bench-all analyse teardown-doris teardown-duckdb teardown-clickhouse \
+        bench-trino-local bench-trino-gcs \
+        bench-all analyse teardown-doris teardown-duckdb teardown-clickhouse teardown-trino \
         teardown-all clean-results
 
 # ---------------------------------------------------------------------------
@@ -36,6 +38,7 @@ help:
 	@echo "    make install-doris      Install and start Apache Doris"
 	@echo "    make install-duckdb     Install DuckDB CLI + Python package"
 	@echo "    make install-clickhouse Install and start ClickHouse"
+	@echo "    make install-trino      Install and start Trino 481 (Docker, single-node)"
 	@echo ""
 	@echo "  Benchmark (stop other engines first)"
 	@echo "    make bench-doris-local        Read + write benchmarks — local mode"
@@ -44,7 +47,9 @@ help:
 	@echo "    make bench-duckdb-gcs"
 	@echo "    make bench-clickhouse-local"
 	@echo "    make bench-clickhouse-gcs"
-	@echo "    make bench-all                Full sequential run (local only, all engines)"
+	@echo "    make bench-trino-local        Read benchmarks — local Parquet (W3/W4: FEATURE_GAP)"
+	@echo "    make bench-trino-gcs          Read benchmarks — GCS Parquet"
+	@echo "    make bench-all                Full sequential run (local only, all 4 engines)"
 	@echo ""
 	@echo "  Analysis"
 	@echo "    make analyse            Aggregate results → CSV + charts + summary table"
@@ -53,6 +58,7 @@ help:
 	@echo "    make teardown-doris     Stop Doris containers"
 	@echo "    make teardown-duckdb    Kill DuckDB processes"
 	@echo "    make teardown-clickhouse Stop ClickHouse container"
+	@echo "    make teardown-trino     Stop Trino container"
 	@echo "    make teardown-all       Stop all engines"
 	@echo ""
 	@echo "  Cleanup"
@@ -92,6 +98,10 @@ install-clickhouse:
 	@echo "--- Installing ClickHouse ---"
 	bash scripts/03_install_clickhouse.sh
 
+install-trino:
+	@echo "--- Installing Trino ---"
+	bash scripts/04_install_trino.sh
+
 # ---------------------------------------------------------------------------
 # Schema creation (run after engine is up)
 # ---------------------------------------------------------------------------
@@ -106,6 +116,34 @@ schema-doris:
 schema-duckdb:
 	duckdb $$(grep DUCKDB_DB_PATH $(ENV_FILE) | cut -d= -f2 || echo /opt1/duckdb/benchmark.duckdb) \
 	    < schema/duckdb_ddl.sql
+
+schema-trino-local:
+	@TRINO_USER=$$(grep -E '^TRINO_USER=' $(ENV_FILE) | cut -d= -f2 || echo trino); \
+	TRINO_PORT=$$(grep -E '^TRINO_PORT=' $(ENV_FILE) | cut -d= -f2 || echo 8080); \
+	docker exec -i trino trino \
+	    --server "http://localhost:$$TRINO_PORT" \
+	    --user "$$TRINO_USER" \
+	    --catalog local_hive \
+	    --schema poc \
+	    < schema/trino_local_ddl.sql
+
+schema-trino-gcs:
+	@# Substitute GCS bucket/prefix placeholders before piping to Trino CLI
+	@GCS_BUCKET=$$(grep -E '^GCS_BUCKET=' $(ENV_FILE) | cut -d= -f2); \
+	GCS_PREFIX=$$(grep -E '^GCS_BUCKET_PREFIX=' $(ENV_FILE) | cut -d= -f2); \
+	GCS_LISTING=$$(grep -E '^GCS_GLUSR_PREMIUM_LISTING_PREFIX=' $(ENV_FILE) | cut -d= -f2); \
+	GCS_LISTING_DIR=$$(dirname "$$GCS_LISTING"); \
+	TRINO_USER=$$(grep -E '^TRINO_USER=' $(ENV_FILE) | cut -d= -f2 || echo trino); \
+	sed \
+	    -e "s|<GCS_BUCKET>|$$GCS_BUCKET|g" \
+	    -e "s|<GCS_BUCKET_PREFIX>|$$GCS_PREFIX|g" \
+	    -e "s|<GCS_GLUSR_LISTING_DIR>|$$GCS_LISTING_DIR|g" \
+	    schema/trino_gcs_ddl.sql | \
+	docker exec -i trino trino \
+	    --server "http://localhost:8080" \
+	    --user "$$TRINO_USER" \
+	    --catalog gcs_hive \
+	    --schema poc
 
 schema-clickhouse:
 	# ClickHouse HTTP API rejects multi-statement payloads; use clickhouse-client --multiquery
@@ -151,7 +189,15 @@ bench-clickhouse-gcs:
 	@echo "--- Benchmarking ClickHouse (GCS) ---"
 	$(PYTHON) harness/run_benchmark.py --engine clickhouse --mode gcs
 
-# Run all three engines sequentially (local only) — stops each before starting next
+bench-trino-local:
+	@echo "--- Benchmarking Trino (local) ---"
+	$(PYTHON) harness/run_benchmark.py --engine trino --mode local
+
+bench-trino-gcs:
+	@echo "--- Benchmarking Trino (GCS) ---"
+	$(PYTHON) harness/run_benchmark.py --engine trino --mode gcs
+
+# Run all four engines sequentially (local only) — stops each before starting next
 bench-all:
 	@echo "========================================"
 	@echo "  Full Sequential Benchmark (local)"
@@ -176,6 +222,12 @@ bench-all:
 	$(MAKE) schema-clickhouse
 	$(MAKE) bench-clickhouse-local
 	$(MAKE) teardown-clickhouse
+	sleep 10
+	@echo ""
+	@echo "=== Phase 4: Trino ==="
+	$(MAKE) install-trino
+	$(MAKE) bench-trino-local
+	$(MAKE) teardown-trino
 	@echo ""
 	@echo "=== All benchmarks complete — running analysis ==="
 	$(MAKE) analyse
@@ -203,6 +255,9 @@ teardown-duckdb:
 
 teardown-clickhouse:
 	bash scripts/99_teardown.sh --engine clickhouse
+
+teardown-trino:
+	bash scripts/99_teardown.sh --engine trino
 
 teardown-all:
 	bash scripts/99_teardown.sh --all

@@ -247,10 +247,33 @@ def point_update_clickhouse(env: dict, iterations: int) -> dict:
     }
 
 
+def point_update_trino(env: dict, iterations: int) -> dict:
+    """Trino point UPDATE on external Hive Parquet table.
+
+    Hive connector external tables backed by Parquet are READ-ONLY in Trino.
+    Mutations (UPDATE/DELETE) require Iceberg or Delta Lake format tables.
+    This workload documents the gap rather than silently failing.
+    """
+    return {
+        "status": "FEATURE_GAP",
+        "semantic_note": (
+            "Trino Hive connector external tables (Parquet/ORC) are immutable — "
+            "UPDATE and DELETE are not supported. "
+            "For mutable workloads, use the Iceberg connector with "
+            "iceberg.catalog.type=hadoop (no HMS required) which provides "
+            "full ACID row-level UPDATE/DELETE via merge-on-read. "
+            "Switching to Iceberg requires converting the data format: "
+            "CREATE TABLE ... WITH (format = 'PARQUET') in the iceberg catalog, "
+            "then INSERT INTO ... SELECT * FROM hive.poc.event_fact."
+        ),
+    }
+
+
 UPDATERS = {
     "doris":      point_update_doris,
     "duckdb":     point_update_duckdb,
     "clickhouse": point_update_clickhouse,
+    "trino":      point_update_trino,
 }
 
 

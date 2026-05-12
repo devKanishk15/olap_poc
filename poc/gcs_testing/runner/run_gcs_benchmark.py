@@ -52,7 +52,7 @@ QUERY_IDS = [
     "GQ10_heavy_scan",
 ]
 
-ENGINES    = ["doris", "duckdb", "clickhouse"]
+ENGINES    = ["doris", "duckdb", "clickhouse", "trino"]
 WARM_ITERS = int(os.environ.get("GCS_WARM_ITERATIONS", "3"))
 TIMEOUT_S  = int(os.environ.get("GCS_QUERY_TIMEOUT_SECONDS", "600"))
 
@@ -283,10 +283,42 @@ def run_clickhouse(sql: str, env: dict, timeout: int, cold: bool = False) -> dic
     return {"elapsed_s": elapsed, "rows_returned": rows}
 
 
+def run_trino(sql: str, env: dict, timeout: int, cold: bool = False) -> dict:
+    """Execute SQL via trino-python-client against the gcs_hive catalog.
+
+    The gcs_hive catalog is pre-configured with GCS HMAC credentials.
+    The poc.glusr_premium_listing table must be registered via make schema-trino-gcs.
+    cold=True: no special flush (Trino has no cache-flush API; OS drop was already done).
+    """
+    import trino as trino_lib
+
+    host    = env.get("TRINO_HOST", "127.0.0.1")
+    port    = int(env.get("TRINO_PORT", "8080"))
+    user    = env.get("TRINO_USER", "trino")
+
+    conn = trino_lib.dbapi.connect(
+        host=host, port=port, user=user,
+        http_scheme="http",
+        catalog="gcs_hive",
+        schema="poc",
+        request_timeout=timeout,
+    )
+    cur = conn.cursor()
+
+    t0 = time.perf_counter()
+    cur.execute(sql)
+    rows = cur.fetchall()
+    elapsed = time.perf_counter() - t0
+
+    conn.close()
+    return {"elapsed_s": elapsed, "rows_returned": len(rows)}
+
+
 RUNNERS = {
     "doris":      run_doris,
     "duckdb":     run_duckdb,
     "clickhouse": run_clickhouse,
+    "trino":      run_trino,
 }
 
 
