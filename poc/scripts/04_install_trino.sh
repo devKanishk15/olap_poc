@@ -34,8 +34,14 @@ echo ""
 echo "--- Creating Trino directories ---"
 mkdir -p "${ETC_DIR}/catalog"
 mkdir -p /opt1/olap_poc/trino/data/spill
+
+# Always wipe the file-based metastore on a fresh install to avoid stale or
+# corrupted .trinoSchema / .trinoPermissions files from previous failed runs.
+rm -rf /opt1/olap_poc/trino/metastore/*
+rm -rf /opt1/olap_poc/trino/gcs_metastore/*
 mkdir -p /opt1/olap_poc/trino/metastore
 mkdir -p /opt1/olap_poc/trino/gcs_metastore
+
 # Trino runs as uid 1000 inside the container
 chown -R 1000:1000 /opt1/olap_poc/trino/data \
                    /opt1/olap_poc/trino/metastore \
