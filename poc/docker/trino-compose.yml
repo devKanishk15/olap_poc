@@ -21,10 +21,8 @@ services:
       - /opt1/olap_poc/trino/etc:/etc/trino
       # Trino data dir (spill, query history)
       - /opt1/olap_poc/trino/data:/data/trino
-      # File metastore directories (local + GCS catalogs)
-      - /opt1/olap_poc/trino/metastore:/opt1/olap_poc/trino/metastore
-      - /opt1/olap_poc/trino/gcs_metastore:/opt1/olap_poc/trino/gcs_metastore
       # Local benchmark data (read-only mount — Trino reads Parquet directly)
+      # Note: metastore dirs live inside /data/trino (metastore/ and gcs_metastore/)
       - /opt1/olap_poc/data:/opt1/olap_poc/data:ro
     mem_limit: 7168m    # 7 GB Docker hard limit
     cpus: "4.0"
