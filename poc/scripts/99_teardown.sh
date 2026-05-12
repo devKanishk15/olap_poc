@@ -26,7 +26,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$ALL" == "false" && -z "$ENGINE" ]]; then
-  echo "Usage: $0 --engine {doris|duckdb|clickhouse} | --all [--wipe]" >&2
+  echo "Usage: $0 --engine {doris|duckdb|clickhouse|trino} | --all [--wipe]" >&2
   exit 1
 fi
 
@@ -66,6 +66,19 @@ teardown_clickhouse() {
   echo "  ClickHouse stopped."
 }
 
+teardown_trino() {
+  echo "--- Tearing down Trino ---"
+  docker compose -f /opt1/olap_poc/poc/docker/trino-compose.yml \
+    down --remove-orphans 2>/dev/null || true
+  if [[ "$WIPE" == "true" ]]; then
+    rm -rf /opt1/olap_poc/trino/data/*
+    rm -rf /opt1/olap_poc/trino/metastore/*
+    rm -rf /opt1/olap_poc/trino/gcs_metastore/*
+    echo "  /opt1/olap_poc/trino data/metastore wiped."
+  fi
+  echo "  Trino stopped."
+}
+
 free_ram_check() {
   echo ""
   echo "--- RAM after teardown ---"
@@ -82,11 +95,13 @@ if [[ "$ALL" == "true" ]]; then
   teardown_doris
   teardown_duckdb
   teardown_clickhouse
+  teardown_trino
 else
   case "$ENGINE" in
     doris)      teardown_doris ;;
     duckdb)     teardown_duckdb ;;
     clickhouse) teardown_clickhouse ;;
+    trino)      teardown_trino ;;
     *) echo "Unknown engine: $ENGINE" >&2; exit 1 ;;
   esac
 fi

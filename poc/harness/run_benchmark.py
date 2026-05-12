@@ -59,7 +59,7 @@ QUERY_IDS = [
 
 WRITE_WORKLOADS = ["W1_bulk_load", "W2_micro_batch", "W3_point_update", "W4_bulk_update"]
 
-ENGINES = ["doris", "duckdb", "clickhouse"]
+ENGINES = ["doris", "duckdb", "clickhouse", "trino"]
 MODES   = ["local", "gcs"]
 
 
@@ -184,6 +184,29 @@ def preflight_check(engine: str, env: dict) -> None:
                     "  → Run:  make schema-clickhouse"
                 )
 
+        elif engine == "trino":
+            import trino as _trino
+            host    = env.get("TRINO_HOST", "127.0.0.1")
+            port    = int(env.get("TRINO_PORT", "8080"))
+            user    = env.get("TRINO_USER", "trino")
+            catalog = "local_hive"
+            conn = _trino.dbapi.connect(
+                host=host, port=port, user=user,
+                http_scheme="http", catalog=catalog, schema="poc",
+            )
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT COUNT(*) FROM information_schema.tables "
+                "WHERE table_schema = 'poc' AND table_name = 'event_fact'"
+            )
+            found = cur.fetchone()[0]
+            conn.close()
+            if not found:
+                _preflight_fail(
+                    "Table poc.event_fact not found in Trino (local_hive catalog).\n"
+                    "  → Run:  make schema-trino-local"
+                )
+
     except SystemExit:
         raise
     except Exception as exc:
@@ -235,6 +258,12 @@ def flush_engine_cache(engine: str, env: dict):
     elif engine == "duckdb":
         # DuckDB has no internal cache; OS drop is sufficient.
         print("  [cache] DuckDB: in-process, OS cache drop is sufficient.")
+
+    elif engine == "trino":
+        # Trino caches JIT-compiled bytecode and some metadata in the JVM heap.
+        # No explicit cache-flush API exists; restart would clear it but is too slow.
+        # OS page cache drop (done before every cold run) is the main lever.
+        print("  [cache] Trino: no flush API — relying on OS cache drop.")
 
 
 # ---------------------------------------------------------------------------
@@ -393,10 +422,62 @@ def run_clickhouse(sql: str, env: dict, timeout: int) -> dict:
     return {"elapsed_s": elapsed, "rows_returned": rows, "spill": spill}
 
 
+def run_trino(sql: str, env: dict, timeout: int) -> dict:
+    """Execute SQL via trino-python-client (DBAPI interface, HTTP on port 8080).
+
+    Catalog selection:
+    - local mode  → local_hive  (external Parquet on /opt1/olap_poc/data)
+    - gcs mode    → gcs_hive    (external Parquet/CSV on GCS via HMAC)
+    The mode is injected into env as '_MODE' by run_query() before calling here.
+    """
+    import trino as trino_lib
+
+    host    = env.get("TRINO_HOST", "127.0.0.1")
+    port    = int(env.get("TRINO_PORT", "8080"))
+    user    = env.get("TRINO_USER", "trino")
+    mode    = env.get("_MODE", "local")
+    catalog = "gcs_hive" if mode == "gcs" else "local_hive"
+
+    conn = trino_lib.dbapi.connect(
+        host=host,
+        port=port,
+        user=user,
+        http_scheme="http",
+        catalog=catalog,
+        schema="poc",
+        request_timeout=timeout,
+    )
+    cur = conn.cursor()
+
+    t0 = time.perf_counter()
+    cur.execute(sql)
+    rows = cur.fetchall()
+    elapsed = time.perf_counter() - t0
+
+    # Check for spill via Trino's query stats API (best-effort)
+    spill = False
+    try:
+        import requests as _req
+        query_id = getattr(cur, "_query_id", None) or getattr(cur, "query_id", None)
+        if query_id:
+            info = _req.get(
+                f"http://{host}:{port}/v1/query/{query_id}",
+                timeout=5,
+            ).json()
+            spill_bytes = info.get("queryStats", {}).get("spilledDataSize", "0B")
+            spill = spill_bytes not in ("0B", "0", "", None)
+    except Exception:
+        pass
+
+    conn.close()
+    return {"elapsed_s": elapsed, "rows_returned": len(rows), "spill": spill}
+
+
 RUNNERS = {
     "doris":      run_doris,
     "duckdb":     run_duckdb,
     "clickhouse": run_clickhouse,
+    "trino":      run_trino,
 }
 
 
@@ -419,6 +500,9 @@ def run_query(query_id: str, engine: str, mode: str, env: dict) -> Optional[dict
         sql = read_sql(query_id, engine, mode, env)
     except FileNotFoundError as e:
         return {"query_id": query_id, "skipped": True, "reason": str(e)}
+
+    # Inject mode so engine runners (e.g. run_trino) can select the right catalog
+    env = {**env, "_MODE": mode}
 
     runner   = RUNNERS[engine]
     timings  = []

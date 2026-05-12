@@ -18,6 +18,9 @@ mysql-connector-python>=8.3,<9.0
 # ClickHouse HTTP client
 requests>=2.31,<3.0
 
+# Trino Python client (DBAPI-compliant)
+trino>=0.328,<1.0
+
 # GCS upload (native client)
 google-cloud-storage>=2.16,<3.0
 google-auth>=2.29,<3.0

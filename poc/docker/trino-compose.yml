@@ -1,0 +1,57 @@
+version: "3.9"
+
+# =============================================================================
+# Trino 481 — Single-Node Docker Compose
+# Coordinator + worker in one container (node-scheduler.include-coordinator=true)
+# RAM budget: 6 GB JVM heap  |  Docker hard limit: 7 GB
+# Config files live in /opt1/olap_poc/trino/etc (written by 04_install_trino.sh)
+# =============================================================================
+
+services:
+
+  trino:
+    image: ${TRINO_IMAGE:-trinodb/trino:481}
+    container_name: trino
+    hostname: trino
+    restart: unless-stopped
+    ports:
+      - "8080:8080"   # HTTP API + Web UI
+    volumes:
+      # Config directory (written by install script from templates in docker/trino-etc/)
+      - /opt1/olap_poc/trino/etc:/etc/trino
+      # Trino data dir (spill, query history)
+      - /opt1/olap_poc/trino/data:/data/trino
+      # File metastore directories (local + GCS catalogs)
+      - /opt1/olap_poc/trino/metastore:/opt1/olap_poc/trino/metastore
+      - /opt1/olap_poc/trino/gcs_metastore:/opt1/olap_poc/trino/gcs_metastore
+      # Local benchmark data (read-only mount — Trino reads Parquet directly)
+      - /opt1/olap_poc/data:/opt1/olap_poc/data:ro
+    mem_limit: 7168m    # 7 GB Docker hard limit
+    cpus: "4.0"
+    environment:
+      # GCS credentials injected as env vars — referenced by gcs_hive.properties
+      # via ${ENV:VAR_NAME} Trino config substitution syntax
+      - GCS_HMAC_ACCESS_KEY=${GCS_HMAC_ACCESS_KEY}
+      - GCS_HMAC_SECRET=${GCS_HMAC_SECRET}
+      - GCS_BUCKET=${GCS_BUCKET}
+      - GCS_BUCKET_PREFIX=${GCS_BUCKET_PREFIX}
+      - GCS_S3_ENDPOINT=${GCS_S3_ENDPOINT:-https://storage.googleapis.com}
+      - GCS_GLUSR_PREMIUM_LISTING_PREFIX=${GCS_GLUSR_PREMIUM_LISTING_PREFIX}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/info"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+# ---------------------------------------------------------------------------
+# Memory budget:
+#   Docker limit        : 7 GB
+#   JVM -Xmx           : 6 GB  (set in jvm.config)
+#   query.max-memory    : 5 GB
+#   Reserved for JVM overhead, OS, Docker: ~2 GB
+#
+# Spill:
+#   Trino spills automatically to /data/trino/tmp when memory pressure hits
+#   Mapped to /opt1/olap_poc/trino/data on host SSD
+# ---------------------------------------------------------------------------
