@@ -177,11 +177,16 @@ echo "--- Creating schema and registering GCS tables ---"
 
 _trino_exec "gcs_hive" "default" "CREATE SCHEMA IF NOT EXISTS gcs_hive.poc"
 
-docker exec -i trino trino \
-  --server "http://localhost:8080" \
-  --user "${TRINO_USER}" \
-  --catalog "gcs_hive" \
-  --schema "poc" < /opt1/olap_poc/poc/schema/trino_gcs_ddl.sql
+sed \
+  -e "s|<GCS_BUCKET>|${GCS_BUCKET}|g" \
+  -e "s|<GCS_BUCKET_PREFIX>|${GCS_BUCKET_PREFIX}|g" \
+  -e "s|<GCS_GLUSR_PREMIUM_LISTING_PREFIX>|${GCS_GLUSR_PREMIUM_LISTING_PREFIX:-}|g" \
+  /opt1/olap_poc/poc/schema/trino_gcs_ddl.sql \
+  | docker exec -i trino trino \
+      --server "http://localhost:8080" \
+      --user "${TRINO_USER}" \
+      --catalog "gcs_hive" \
+      --schema "poc"
 
 echo "  GCS schema registered."
 
