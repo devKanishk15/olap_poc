@@ -246,10 +246,21 @@ def insert_trino(rows: list[dict], env: dict) -> float:
     """)
     cur.fetchall()
 
-    # Build VALUES clause (parameterised literals)
-    def _lit(v):
+    # Fetch column types so NULL literals can be CAST to the target type.
+    # Trino types bare NULL as `unknown` and rejects INSERT when the column
+    # type cannot be inferred from peer rows (it can't, when every row in
+    # the batch has NULL for the same nullable column).
+    cur.execute("""
+        SELECT column_name, data_type
+        FROM local_hive.information_schema.columns
+        WHERE table_schema = 'poc' AND table_name = 'event_fact_w2_staging'
+        ORDER BY ordinal_position
+    """)
+    col_types = {name: dtype for name, dtype in cur.fetchall()}
+
+    def _lit(v, coltype):
         if v is None:
-            return "NULL"
+            return f"CAST(NULL AS {coltype})"
         if isinstance(v, bool):
             return "true" if v else "false"
         if isinstance(v, (int, float)):
@@ -269,7 +280,7 @@ def insert_trino(rows: list[dict], env: dict) -> float:
     for start in range(0, len(rows), SUB_CHUNK):
         chunk = rows[start:start + SUB_CHUNK]
         value_rows = ", ".join(
-            "(" + ", ".join(_lit(r[c]) for c in cols) + ")"
+            "(" + ", ".join(_lit(r[c], col_types[c]) for c in cols) + ")"
             for r in chunk
         )
         cur.execute(f"INSERT INTO poc.event_fact_w2_staging ({col_list}) VALUES {value_rows}")
