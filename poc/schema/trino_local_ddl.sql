@@ -16,7 +16,7 @@ DROP TABLE IF EXISTS poc.event_fact;
 -- event_date listed last because it is the partition column (Hive convention).
 CREATE TABLE poc.event_fact (
     event_id                BIGINT,
-    event_ts                TIMESTAMP(6) WITH TIME ZONE,
+    event_ts                TIMESTAMP(6) ,
     session_id              VARCHAR,
     user_id                 BIGINT,
     device_id               VARCHAR,
@@ -69,7 +69,7 @@ CREATE TABLE poc.event_fact (
     tag_list                VARCHAR,
     custom_dimensions       VARCHAR,
     raw_payload_size_bytes  INTEGER,
-    ingestion_ts            TIMESTAMP(3) WITH TIME ZONE,
+    ingestion_ts            TIMESTAMP(3) ,
     processing_lag_ms       INTEGER,
     data_version            TINYINT,
     partition_key           INTEGER,
