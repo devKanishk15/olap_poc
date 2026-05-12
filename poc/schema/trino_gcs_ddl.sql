@@ -126,7 +126,7 @@ CREATE TABLE poc.glusr_premium_listing (
 )
 WITH (
     -- Replace <GCS_BUCKET> and <GCS_GLUSR_PREMIUM_LISTING_PREFIX> before running
-    external_location        = 's3://<GCS_BUCKET>/<GCS_GLUSR_LISTING_DIR>',
+    external_location        = 's3://<GCS_BUCKET>/<GCS_GLUSR_PREMIUM_LISTING_PREFIX>',
     format                   = 'TEXTFILE',
     textfile_field_separator = ',',
     skip_header_line_count   = 1
