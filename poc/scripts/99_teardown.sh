@@ -72,9 +72,7 @@ teardown_trino() {
     down --remove-orphans 2>/dev/null || true
   if [[ "$WIPE" == "true" ]]; then
     rm -rf /opt1/olap_poc/trino/data/*
-    rm -rf /opt1/olap_poc/trino/metastore/*
-    rm -rf /opt1/olap_poc/trino/gcs_metastore/*
-    echo "  /opt1/olap_poc/trino data/metastore wiped."
+    echo "  /opt1/olap_poc/trino/data wiped (includes metastore/ and gcs_metastore/)."
   fi
   echo "  Trino stopped."
 }

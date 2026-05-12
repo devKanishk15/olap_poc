@@ -33,19 +33,20 @@ docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || true
 echo ""
 echo "--- Creating Trino directories ---"
 mkdir -p "${ETC_DIR}/catalog"
+
+# Metastore dirs live inside /data/trino (mapped to /opt1/olap_poc/trino/data
+# inside the container). A single volume mount covers everything so there are
+# no separate bind-mount permission surprises.
+# Always wipe metastore on a fresh install to clear stale .trinoSchema files.
+rm -rf /opt1/olap_poc/trino/data/metastore
+rm -rf /opt1/olap_poc/trino/data/gcs_metastore
 mkdir -p /opt1/olap_poc/trino/data/spill
+mkdir -p /opt1/olap_poc/trino/data/metastore
+mkdir -p /opt1/olap_poc/trino/data/gcs_metastore
 
-# Always wipe the file-based metastore on a fresh install to avoid stale or
-# corrupted .trinoSchema / .trinoPermissions files from previous failed runs.
-rm -rf /opt1/olap_poc/trino/metastore/*
-rm -rf /opt1/olap_poc/trino/gcs_metastore/*
-mkdir -p /opt1/olap_poc/trino/metastore
-mkdir -p /opt1/olap_poc/trino/gcs_metastore
-
-# Trino runs as uid 1000 inside the container
-chown -R 1000:1000 /opt1/olap_poc/trino/data \
-                   /opt1/olap_poc/trino/metastore \
-                   /opt1/olap_poc/trino/gcs_metastore
+# Trino runs as uid 1000 inside the container — own everything under /data/trino
+chown -R 1000:1000 /opt1/olap_poc/trino/data
+chmod -R 755       /opt1/olap_poc/trino/data
 echo "  Directories created."
 
 # ---------------------------------------------------------------------------
