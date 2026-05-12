@@ -90,18 +90,39 @@ docker compose -f "$COMPOSE_FILE" up -d
 # 5. Wait for Trino to become ready (JVM startup takes ~20–30s)
 # ---------------------------------------------------------------------------
 echo ""
-echo "--- Waiting for Trino HTTP interface (up to 120s) ---"
-for i in $(seq 1 24); do
+echo "--- Waiting for Trino to be fully ready (up to 180s) ---"
+# Phase 1: wait for HTTP port to respond
+for i in $(seq 1 36); do
   STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
     "http://${TRINO_HOST:-127.0.0.1}:${TRINO_PORT:-8080}/v1/info" 2>/dev/null || echo "000")
   if [[ "$STATUS" == "200" ]]; then
-    echo "  Trino ready after $((i * 5))s"
+    echo "  HTTP interface up after $((i * 5))s"
     break
   fi
-  echo "  Waiting... attempt $i/24 (status=$STATUS)"
+  echo "  Waiting for HTTP... attempt $i/36 (status=$STATUS)"
+  sleep 5
+  if [[ "$i" -eq 36 ]]; then
+    echo "ERROR: Trino did not start in 180s." >&2
+    docker compose -f "$COMPOSE_FILE" logs --tail=80 >&2
+    exit 1
+  fi
+done
+
+# Phase 2: wait for starting=false (engine fully initialised)
+echo "  Waiting for Trino engine to finish initialising..."
+for i in $(seq 1 24); do
+  STARTING=$(curl -s \
+    "http://${TRINO_HOST:-127.0.0.1}:${TRINO_PORT:-8080}/v1/info" 2>/dev/null \
+    | python3 -c "import sys,json; print(json.load(sys.stdin).get('starting','true'))" 2>/dev/null \
+    || echo "true")
+  if [[ "$STARTING" == "False" || "$STARTING" == "false" ]]; then
+    echo "  Trino fully ready."
+    break
+  fi
+  echo "  Still initialising... attempt $i/24"
   sleep 5
   if [[ "$i" -eq 24 ]]; then
-    echo "ERROR: Trino did not start in 120s." >&2
+    echo "ERROR: Trino engine did not finish initialising in 120s." >&2
     docker compose -f "$COMPOSE_FILE" logs --tail=80 >&2
     exit 1
   fi
