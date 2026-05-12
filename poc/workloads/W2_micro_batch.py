@@ -259,13 +259,19 @@ def insert_trino(rows: list[dict], env: dict) -> float:
     col_types = {name: dtype for name, dtype in cur.fetchall()}
 
     def _lit(v, coltype):
+        # CAST every value (including NULL) to the column type. Python ints
+        # default to Trino `integer`/`bigint` and lose to smallint/tinyint
+        # columns; date/timestamp strings come through as varchar(N) and
+        # lose to timestamp(6); without explicit casts the INSERT fails with
+        # a row-signature mismatch.
         if v is None:
             return f"CAST(NULL AS {coltype})"
         if isinstance(v, bool):
-            return "true" if v else "false"
+            return f"CAST({'true' if v else 'false'} AS {coltype})"
         if isinstance(v, (int, float)):
-            return str(v)
-        return "'" + str(v).replace("'", "''") + "'"
+            return f"CAST({v} AS {coltype})"
+        escaped = str(v).replace("'", "''")
+        return f"CAST('{escaped}' AS {coltype})"
 
     cols = list(rows[0].keys())
     col_list = ", ".join(cols)
@@ -274,7 +280,7 @@ def insert_trino(rows: list[dict], env: dict) -> float:
     # clause across ~60 columns runs ~6 MB, so split the batch into sub-chunks
     # of SUB_CHUNK rows each and issue one INSERT per chunk. The batch
     # latency reported to the harness is the sum of the sub-chunk inserts.
-    SUB_CHUNK = 1000
+    SUB_CHUNK = 500
 
     t0 = time.perf_counter()
     for start in range(0, len(rows), SUB_CHUNK):
